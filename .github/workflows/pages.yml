@@ -34,6 +34,7 @@ jobs:
           node --check detail-loading.js
           node --check share-state.js
           node --check share-ui-patch.js
+          node --check share-title-patch.js
           node --check analytics.js
           node --check analytics-worker/src/index.js
       - name: Validate rate and analytics data
@@ -77,6 +78,7 @@ jobs:
           test -f detail-loading.js
           test -f share-state.js
           test -f share-ui-patch.js
+          test -f share-title-patch.js
           test -f analytics.js
           test -f ANALYTICS.md
           test -f analytics-worker/src/index.js
