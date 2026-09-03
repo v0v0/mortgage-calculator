@@ -6,9 +6,9 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "db:create": "wrangler d1 create mortgage-calculator-analytics",
-    "db:init": "wrangler d1 execute mortgage-calculator-analytics --remote --file=./schema.sql"
+    "db:init": "wrangler d1 execute mortgage-calculator-analytics --remote --file=./schema.sql --yes"
   },
   "devDependencies": {
-    "wrangler": "^4.0.0"
+    "wrangler": "4.128.0"
   }
 }
