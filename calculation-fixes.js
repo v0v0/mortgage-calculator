@@ -191,10 +191,12 @@
   }
 
   function money(value, decimals = 0) {
+    const amount = Number(value || 0);
+    if (Math.abs(amount) < 0.005) return '—';
     return new Intl.NumberFormat('zh-CN', {
       style: 'currency', currency: 'CNY',
       minimumFractionDigits: decimals, maximumFractionDigits: decimals
-    }).format(Number(value || 0));
+    }).format(amount);
   }
 
   function annualize(schedule) {
@@ -233,8 +235,10 @@
     const monthlyBody = $('monthlyBody');
     if (!set || !annualBody || !monthlyBody) return;
 
-    const hasCommercial = (set.commercial || []).length > 0;
-    const hasProvident = (set.provident || []).length > 0;
+    const loanType = document.querySelector('#loanTypeTabs button.active')?.dataset.value || 'combined';
+    const isCombined = loanType === 'combined';
+    const hasCommercial = isCombined && (set.commercial || []).length > 0;
+    const hasProvident = isCombined && (set.provident || []).length > 0;
     const annualTotal = annualize(set.total);
     const annualCommercial = annualize(set.commercial);
     const annualProvident = annualize(set.provident);
@@ -269,7 +273,7 @@
     monthlyBody.innerHTML = (set.total || []).map((t, i) => {
       const c = monthlyAt(set.commercial, i), p = monthlyAt(set.provident, i);
       return `<tr><td>第 ${t.period} 期</td><td>${addMonths(startMonth, i)}</td><td>${money(t.payment,2)}</td><td>${money(t.principal,2)}</td><td>${money(t.interest,2)}</td>` +
-        (showExtra ? `<td>${t.extraPrincipal ? money(t.extraPrincipal,2) : '—'}</td>` : '') +
+        (showExtra ? `<td>${money(t.extraPrincipal,2)}</td>` : '') +
         `<td>${money(t.cumulativeInterest,2)}</td><td>${money(t.remaining,2)}</td>` +
         (hasCommercial ? `<td>${money(c.payment,2)}</td><td>${money(c.principal,2)}</td><td>${money(c.interest,2)}</td><td>${money(c.remaining,2)}</td>` : '') +
         (hasProvident ? `<td>${money(p.payment,2)}</td><td>${money(p.principal,2)}</td><td>${money(p.interest,2)}</td><td>${money(p.remaining,2)}</td>` : '') + '</tr>';
