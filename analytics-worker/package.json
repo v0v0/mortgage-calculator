@@ -1,0 +1,14 @@
+{
+  "name": "mortgage-calculator-analytics",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:create": "wrangler d1 create mortgage-calculator-analytics",
+    "db:init": "wrangler d1 execute mortgage-calculator-analytics --remote --file=./schema.sql"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}
