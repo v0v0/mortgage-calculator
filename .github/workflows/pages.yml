@@ -23,6 +23,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Validate JavaScript
+        run: node --check app.js
+      - name: Validate rate data
+        run: python -m json.tool data/mortgage-rates.json > /dev/null
+      - name: Verify required files
+        run: test -f index.html && test -f styles.css && test -f PRODUCT_REQUIREMENTS.md
       - name: Configure Pages
         uses: actions/configure-pages@v5
         with:
