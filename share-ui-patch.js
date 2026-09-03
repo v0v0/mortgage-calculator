@@ -80,13 +80,25 @@
   function buildShareTitle() {
     const rawCity = $('city')?.selectedOptions?.[0]?.textContent?.trim() || '';
     const city = rawCity.split(/[·|｜]/)[0].trim() || '房贷';
-    const amount = compactNumber($('housePrice')?.value);
+    const amount = compactNumber($('loanAmount')?.value);
+    const activeLoanType = document.querySelector('#loanTypeTabs button.active')?.dataset.value || 'combined';
+    const loanLabel = activeLoanType === 'commercial' ? '商贷' : activeLoanType === 'provident' ? '公积金' : '组合贷';
+
     let method = 'equalPayment';
     try {
       if (typeof primaryMethod !== 'undefined' && primaryMethod) method = primaryMethod;
     } catch (_) {}
     const methodLabel = method === 'equalPrincipal' ? '等额本金' : '等额本息';
-    return `房贷计算-${city}${amount}万-${methodLabel}`;
+
+    const baseYears = compactNumber($('termYears')?.value);
+    let termLabel = `${baseYears}年`;
+    if (activeLoanType === 'combined' && $('separateTerms')?.checked) {
+      const commercialYears = compactNumber($('commercialTermYears')?.value || baseYears);
+      const providentYears = compactNumber($('providentTermYears')?.value || baseYears);
+      termLabel = commercialYears === providentYears ? `${commercialYears}年` : `商${commercialYears}/公${providentYears}年`;
+    }
+
+    return `房贷-${city}-${amount}万-${loanLabel}-${methodLabel}-${termLabel}`;
   }
 
   function updatePageTitle() {
