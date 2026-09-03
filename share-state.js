@@ -3,6 +3,8 @@
 
   const $ = id => document.getElementById(id);
   const pendingPayload = window.__mortgageSharePayload || (location.hash.startsWith('#s=') ? location.hash.slice(3) : '');
+  let currentShareUrl = '';
+  let autoShareTimer = null;
 
   if (!window.__mortgageSharePayload && pendingPayload) {
     history.replaceState(null, '', location.pathname + location.search);
@@ -44,9 +46,6 @@
         <button id="floatDetail" type="button" title="查看还款明细" aria-label="查看还款明细">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14M5 12h14M5 18h14M8 4v16M16 4v16"/></svg>
         </button>
-        <button id="floatImage" type="button" title="保存房贷结果长图" aria-label="保存房贷结果长图">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/><circle cx="9" cy="9" r="1.5"/><path d="M5 17l4.5-4.5 3.2 3.2 2-2L19 18"/></svg>
-        </button>
         <button id="floatShare" type="button" title="分享当前方案链接" aria-label="分享当前方案链接">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8l7.6-4.5M8.2 13.2l7.6 4.5"/></svg>
         </button>
@@ -63,6 +62,69 @@
       toast.setAttribute('aria-live', 'polite');
       document.body.appendChild(toast);
     }
+
+    if (!$('sharePanelBackdrop')) {
+      const backdrop = document.createElement('div');
+      backdrop.id = 'sharePanelBackdrop';
+      backdrop.className = 'share-panel-backdrop';
+      backdrop.hidden = true;
+      backdrop.innerHTML = `
+        <section class="share-panel" role="dialog" aria-modal="true" aria-labelledby="sharePanelTitle">
+          <div class="share-panel-head">
+            <div>
+              <h3 id="sharePanelTitle">分享当前方案</h3>
+              <p>链接打开后会自动恢复当前房贷方案。</p>
+            </div>
+            <button id="sharePanelClose" type="button" class="share-close" aria-label="关闭分享界面">×</button>
+          </div>
+          <label class="share-url-label">分享链接
+            <textarea id="shareUrlValue" rows="4" readonly spellcheck="false" aria-label="分享链接"></textarea>
+          </label>
+          <p id="sharePanelStatus" class="share-panel-status" role="status" aria-live="polite">正在生成链接…</p>
+          <div class="share-panel-actions">
+            <button id="shareCopy" type="button" class="ghost">复制链接</button>
+            <button id="shareSystem" type="button" class="primary">系统分享</button>
+          </div>
+        </section>`;
+      document.body.appendChild(backdrop);
+
+      $('sharePanelClose')?.addEventListener('click', closeSharePanel);
+      backdrop.addEventListener('click', event => {
+        if (event.target === backdrop) closeSharePanel();
+      });
+      $('shareCopy')?.addEventListener('click', async () => {
+        if (!currentShareUrl) return;
+        const copied = await copyText(currentShareUrl);
+        setShareStatus(copied ? '链接已复制。' : '自动复制失败，请长按链接复制。');
+      });
+      $('shareSystem')?.addEventListener('click', async () => {
+        if (!currentShareUrl) return;
+        await triggerSystemShare(currentShareUrl, false);
+      });
+      document.addEventListener('keydown', event => {
+        if (event.key === 'Escape' && !$('sharePanelBackdrop')?.hidden) closeSharePanel();
+      });
+    }
+  }
+
+  function openSharePanel() {
+    const backdrop = $('sharePanelBackdrop');
+    if (!backdrop) return;
+    backdrop.hidden = false;
+    document.body.classList.add('share-panel-open');
+  }
+
+  function closeSharePanel() {
+    clearTimeout(autoShareTimer);
+    autoShareTimer = null;
+    const backdrop = $('sharePanelBackdrop');
+    if (backdrop) backdrop.hidden = true;
+    document.body.classList.remove('share-panel-open');
+  }
+
+  function setShareStatus(text) {
+    const status = $('sharePanelStatus');
+    if (status) status.textContent = text;
   }
 
   function packMonth(value) {
@@ -234,42 +296,87 @@
     return `${location.origin}${location.pathname}#s=${encoded}`;
   }
 
+  async function copyText(text) {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch (_) {}
+
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.readOnly = true;
+      textarea.setAttribute('aria-hidden', 'true');
+      textarea.style.position = 'fixed';
+      textarea.style.left = '-9999px';
+      textarea.style.top = '0';
+      textarea.style.fontSize = '16px';
+      document.body.appendChild(textarea);
+      textarea.select();
+      textarea.setSelectionRange(0, textarea.value.length);
+      const copied = document.execCommand('copy');
+      textarea.remove();
+      return copied;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  async function triggerSystemShare(url, automatic) {
+    if (!navigator.share) {
+      setShareStatus('当前浏览器不支持系统分享，链接已经复制。');
+      return false;
+    }
+    try {
+      await navigator.share({
+        title: '房贷利率计算器',
+        text: '打开后自动应用我分享的房贷测算方案',
+        url
+      });
+      setShareStatus('系统分享已打开。');
+      return true;
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        setShareStatus('已取消系统分享，链接仍可直接复制。');
+        return true;
+      }
+      console.warn('系统分享未能自动打开', error);
+      if (automatic) setShareStatus('浏览器阻止了自动系统分享，请点击“系统分享”。链接已复制。');
+      else setShareStatus('无法打开系统分享，链接已复制。');
+      return false;
+    }
+  }
+
   async function shareCurrentPlan() {
     const button = $('floatShare');
+    clearTimeout(autoShareTimer);
+    autoShareTimer = null;
+    currentShareUrl = '';
+    openSharePanel();
+    const field = $('shareUrlValue');
+    if (field) field.value = '正在生成分享链接…';
+    setShareStatus('正在生成链接…');
+
     try {
       const url = await makeShareUrl();
-      if (navigator.share) {
-        try {
-          await navigator.share({
-            title: '房贷利率计算器',
-            text: '打开后自动应用我分享的房贷测算方案',
-            url
-          });
-          showToast(`已生成方案链接（${url.length} 字符）`);
-          return;
-        } catch (error) {
-          if (error?.name === 'AbortError') return;
-        }
-      }
-
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(url);
-      } else {
-        const textarea = document.createElement('textarea');
-        textarea.value = url;
-        textarea.readOnly = true;
-        textarea.style.position = 'fixed';
-        textarea.style.opacity = '0';
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand('copy');
-        textarea.remove();
-      }
+      currentShareUrl = url;
+      if (field) field.value = url;
+      const copied = await copyText(url);
       button?.classList.add('share-success');
       setTimeout(() => button?.classList.remove('share-success'), 900);
-      showToast(`方案链接已复制（${url.length} 字符）`);
+      setShareStatus(copied ? '链接已复制，1 秒后打开系统分享…' : '链接已生成，1 秒后打开系统分享…');
+
+      autoShareTimer = setTimeout(async () => {
+        autoShareTimer = null;
+        if ($('sharePanelBackdrop')?.hidden || currentShareUrl !== url) return;
+        await triggerSystemShare(url, true);
+      }, 1000);
     } catch (error) {
       console.error(error);
+      if (field) field.value = '';
+      setShareStatus('生成分享链接失败，请重试。');
       showToast('生成分享链接失败，请重试');
     }
   }
@@ -278,7 +385,6 @@
     $('floatTop')?.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
     $('floatCompare')?.addEventListener('click', () => document.querySelector('.comparison-card-wrap')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
     $('floatDetail')?.addEventListener('click', () => document.querySelector('.detail-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
-    $('floatImage')?.addEventListener('click', () => $('floatPdf')?.click());
     $('floatShare')?.addEventListener('click', shareCurrentPlan);
     $('floatSave')?.addEventListener('click', () => $('savePlan')?.click());
   }
