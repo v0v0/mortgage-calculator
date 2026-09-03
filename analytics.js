@@ -1,36 +1,22 @@
 (() => {
-  const VISITOR_KEY = 'mortgage-calculator-visitor-v1';
+  const QUALIFIED_VISIT_MS = 10_000;
+  const CALC_IDLE_MS = 2_000;
+
   let cfg = null;
   let calcTimer = null;
+  let visitTimer = null;
+  let visitRecorded = false;
   let interacted = false;
   let lastCalcPayload = '';
-  let memoryVisitorId = '';
-
-  function makeId() {
-    if (crypto?.randomUUID) return crypto.randomUUID();
-    return `v-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
-  }
-
-  function visitorId() {
-    try {
-      let value = localStorage.getItem(VISITOR_KEY);
-      if (!value) {
-        value = makeId();
-        localStorage.setItem(VISITOR_KEY, value);
-      }
-      return value;
-    } catch (_) {
-      if (!memoryVisitorId) memoryVisitorId = makeId();
-      return memoryVisitorId;
-    }
-  }
+  let visibleElapsedMs = 0;
+  let visibleStartedAt = document.visibilityState === 'visible' ? performance.now() : null;
 
   async function loadConfig() {
     try {
       const res = await fetch('./data/analytics-config.json', { cache: 'no-store' });
       cfg = await res.json();
       if (!cfg?.enabled || !cfg?.endpoint) return;
-      send('visit', { visitorId: visitorId() });
+      bindQualifiedVisitTracking();
       bindCalculationTracking();
       bindExportTracking();
     } catch (e) {
@@ -42,15 +28,20 @@
     return `${String(cfg.endpoint).replace(/\/$/, '')}/v1/${path}`;
   }
 
-  function send(path, payload) {
-    if (!cfg?.enabled || !cfg?.endpoint) return;
-    fetch(endpoint(path), {
-      method: 'POST',
-      mode: 'cors',
-      keepalive: true,
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(payload)
-    }).catch(() => {});
+  async function send(path, payload = {}) {
+    if (!cfg?.enabled || !cfg?.endpoint) return false;
+    try {
+      const res = await fetch(endpoint(path), {
+        method: 'POST',
+        mode: 'cors',
+        keepalive: true,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      return res.ok;
+    } catch (_) {
+      return false;
+    }
   }
 
   function activeLoanType() {
@@ -61,53 +52,76 @@
     return document.querySelector('#detailMethodTabs button.active')?.dataset.value || 'equalPayment';
   }
 
-  function prepaymentSummary() {
-    const rows = [...document.querySelectorAll('.prepayment-row')];
-    let count = 0;
-    let totalWan = 0;
-    rows.forEach(row => {
-      const month = Number(row.querySelector('[data-field="month"]')?.value || 0);
-      const amount = Number(row.querySelector('[data-field="amount"]')?.value || 0);
-      if (month > 0 && amount > 0) {
-        count += 1;
-        totalWan += amount;
-      }
-    });
-    return { prepaymentCount: count, prepaymentTotalWan: Number(totalWan.toFixed(2)) };
-  }
-
   function snapshot() {
     const city = document.getElementById('city')?.value || '';
     const cityName = document.getElementById('city')?.selectedOptions?.[0]?.textContent?.trim() || city;
-    const housePriceWan = Number(document.getElementById('housePrice')?.value || 0);
     const loanAmountWan = Number(document.getElementById('loanAmount')?.value || 0);
-    const loanRatio = Number(document.getElementById('loanRatio')?.value || 0);
-    const providentAmountWan = Number(document.getElementById('providentAmount')?.value || 0);
-    const termYears = Number(document.getElementById('termYears')?.value || 0);
-    const commercialRate = Number(document.getElementById('commercialRate')?.value || 0);
-    const providentRate = Number(document.getElementById('providentRate')?.value || 0);
-    const prepayment = prepaymentSummary();
     return {
-      visitorId: visitorId(),
       city,
       cityName,
-      housePriceWan,
       loanAmountWan,
-      loanRatio,
       loanType: activeLoanType(),
-      repaymentMethod: activeRepaymentMethod(),
-      homeType: document.getElementById('homeType')?.value || 'first',
-      termYears,
-      providentAmountWan,
-      commercialRate,
-      providentRate,
-      ...prepayment
+      repaymentMethod: activeRepaymentMethod()
     };
   }
 
   function validSnapshot(payload) {
-    return payload.city && Number.isFinite(payload.housePriceWan) && payload.housePriceWan > 0 &&
-      Number.isFinite(payload.loanAmountWan) && payload.loanAmountWan >= 0;
+    return payload.city && Number.isFinite(payload.loanAmountWan) && payload.loanAmountWan > 0;
+  }
+
+  function currentVisibleElapsed() {
+    if (visibleStartedAt === null) return visibleElapsedMs;
+    return visibleElapsedMs + Math.max(0, performance.now() - visibleStartedAt);
+  }
+
+  function clearVisitTimer() {
+    if (visitTimer !== null) {
+      clearTimeout(visitTimer);
+      visitTimer = null;
+    }
+  }
+
+  function armVisitTimer() {
+    clearVisitTimer();
+    if (visitRecorded || document.visibilityState !== 'visible') return;
+    const remaining = Math.max(0, QUALIFIED_VISIT_MS - currentVisibleElapsed());
+    visitTimer = setTimeout(recordQualifiedVisit, remaining);
+  }
+
+  async function recordQualifiedVisit() {
+    clearVisitTimer();
+    if (visitRecorded || document.visibilityState !== 'visible') return;
+    if (currentVisibleElapsed() < QUALIFIED_VISIT_MS) {
+      armVisitTimer();
+      return;
+    }
+
+    visitRecorded = true;
+    const ok = await send('visit');
+    if (!ok) {
+      visitRecorded = false;
+      setTimeout(armVisitTimer, 5_000);
+    }
+  }
+
+  function bindQualifiedVisitTracking() {
+    if (document.visibilityState === 'visible' && visibleStartedAt === null) {
+      visibleStartedAt = performance.now();
+    }
+    armVisitTimer();
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        visibleStartedAt = performance.now();
+        armVisitTimer();
+      } else {
+        if (visibleStartedAt !== null) {
+          visibleElapsedMs += Math.max(0, performance.now() - visibleStartedAt);
+          visibleStartedAt = null;
+        }
+        clearVisitTimer();
+      }
+    });
   }
 
   function queueCalculation() {
@@ -120,12 +134,13 @@
       if (signature === lastCalcPayload) return;
       lastCalcPayload = signature;
       send('calc', payload);
-    }, 1200);
+    }, CALC_IDLE_MS);
   }
 
   function bindCalculationTracking() {
     const root = document.querySelector('.form-card');
     if (!root) return;
+
     ['input', 'change', 'click'].forEach(type => {
       root.addEventListener(type, event => {
         if (!event.isTrusted) return;
@@ -151,7 +166,6 @@
       if (!button) return;
       const payload = snapshot();
       if (!validSnapshot(payload)) return;
-      payload.detailView = document.querySelector('#detailViewTabs button.active')?.dataset.value || 'annual';
       send('export', payload);
     }, true);
   }
