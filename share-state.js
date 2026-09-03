@@ -15,6 +15,45 @@
     return Number.isFinite(n) ? n : 0;
   };
 
+  function installFloatingTools() {
+    if (!document.querySelector('link[data-share-state-style]')) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = './share-state.css';
+      link.dataset.shareStateStyle = '1';
+      document.head.appendChild(link);
+    }
+
+    const nav = document.querySelector('.floating-tools');
+    if (nav) {
+      nav.innerHTML = `
+        <button id="floatTop" type="button" title="回到顶部" aria-label="回到顶部">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>
+        </button>
+        <button id="floatCompare" type="button" title="查看方案对比" aria-label="查看方案对比">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V9M12 19V5M19 19v-7M3 19h18"/></svg>
+        </button>
+        <button id="floatDetail" type="button" title="查看还款明细" aria-label="查看还款明细">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14M5 12h14M5 18h14M8 4v16M16 4v16"/></svg>
+        </button>
+        <button id="floatShare" type="button" title="分享当前方案链接" aria-label="分享当前方案链接">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8l7.6-4.5M8.2 13.2l7.6 4.5"/></svg>
+        </button>
+        <button id="floatSave" type="button" title="保存当前方案" aria-label="保存当前方案">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h12l2 2v14H5zM8 4v6h8V4M8 20v-6h8v6"/></svg>
+        </button>`;
+    }
+
+    if (!$('shareToast')) {
+      const toast = document.createElement('div');
+      toast.id = 'shareToast';
+      toast.className = 'share-toast';
+      toast.setAttribute('role', 'status');
+      toast.setAttribute('aria-live', 'polite');
+      document.body.appendChild(toast);
+    }
+  }
+
   function packMonth(value) {
     const match = String(value || '').match(/^(\d{4})-(\d{2})$/);
     return match ? Number(`${match[1]}${match[2]}`) : 0;
@@ -39,9 +78,10 @@
   function expandPrepayments(items) {
     return (Array.isArray(items) ? items : []).map(item => {
       if (!Array.isArray(item)) return null;
-      const target = enumValue(item[item[0] === 1 ? 4 : 3], ['commercial', 'provident'], 'commercial');
-      const strategy = enumValue(item[item[0] === 1 ? 5 : 4], ['shorten', 'reducePayment'], 'shorten');
-      if (item[0] === 1) {
+      const recurring = item[0] === 1;
+      const target = enumValue(item[recurring ? 4 : 3], ['commercial', 'provident'], 'commercial');
+      const strategy = enumValue(item[recurring ? 5 : 4], ['shorten', 'reducePayment'], 'shorten');
+      if (recurring) {
         return {
           mode: 'recurring',
           firstMonth: numberValue(item[1]),
@@ -224,9 +264,11 @@
   }
 
   function bindFloatingTools() {
+    $('floatTop')?.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
     $('floatCompare')?.addEventListener('click', () => document.querySelector('.comparison-card-wrap')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
     $('floatDetail')?.addEventListener('click', () => document.querySelector('.detail-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
     $('floatShare')?.addEventListener('click', shareCurrentPlan);
+    $('floatSave')?.addEventListener('click', () => $('savePlan')?.click());
   }
 
   function preserveSharedCommercialRate(savedRate, originallyDirect) {
@@ -276,6 +318,7 @@
     }
   }
 
+  installFloatingTools();
   bindFloatingTools();
   restoreSharedPlan();
 })();
