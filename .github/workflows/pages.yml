@@ -35,12 +35,17 @@ jobs:
           import json
           from pathlib import Path
 
-          base = json.loads(Path('data/mortgage-rates.json').read_text(encoding='utf-8'))
           verified = json.loads(Path('data/rate-verification-2026-09-03.json').read_text(encoding='utf-8'))
-          city_ids = {city['id'] for city in base['cities']}
+          tiers = verified['cityScope']['tiers']
+          scoped_ids = [city_id for city_ids in tiers.values() for city_id in city_ids]
           verified_ids = set(verified['rates'])
-          assert city_ids == verified_ids, f'city mismatch: missing={city_ids-verified_ids}, extra={verified_ids-city_ids}'
-          assert len(city_ids) == 50, f'expected 50 cities, got {len(city_ids)}'
+
+          assert list(tiers) == ['一线', '新一线', '二线'], list(tiers)
+          assert [len(tiers['一线']), len(tiers['新一线']), len(tiers['二线'])] == [4, 15, 30]
+          assert len(scoped_ids) == 49, f'expected 49 scoped cities, got {len(scoped_ids)}'
+          assert len(set(scoped_ids)) == 49, 'duplicate city id in cityScope'
+          assert set(scoped_ids) == verified_ids, f'scope/rates mismatch: missing={set(scoped_ids)-verified_ids}, extra={verified_ids-set(scoped_ids)}'
+
           for city_id, row in verified['rates'].items():
               rate, bp, quality, confidence, source_id = row
               assert 2.0 <= rate <= 5.0, (city_id, rate)
