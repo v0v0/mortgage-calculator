@@ -2,7 +2,8 @@
   'use strict';
 
   const $ = id => document.getElementById(id);
-  let installed = false;
+  let shareInstalled = false;
+  let saveInstalled = false;
 
   async function copyText(text) {
     try {
@@ -32,6 +33,30 @@
     }
   }
 
+  function installStyles() {
+    if (document.getElementById('share-save-ui-style')) return;
+    const style = document.createElement('style');
+    style.id = 'share-save-ui-style';
+    style.textContent = `
+      .share-panel-actions .share-copy-and-share{width:100%;min-height:44px;font-size:14px;font-weight:700}
+      .save-dialog .save-persistence-box{margin:12px 0 14px;padding:12px;border:1px solid #d5e4f6;border-radius:13px;background:linear-gradient(145deg,#f5f9ff,#f2fbf8)}
+      .save-dialog .save-persistence-title{display:flex;align-items:center;gap:7px;color:#23466f;font-size:12px;font-weight:800}
+      .save-dialog .save-persistence-title svg{width:17px;height:17px;fill:none;stroke:#2563eb;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+      .save-dialog .save-persistence-box p{margin:6px 0 0!important;color:#66788e!important;font-size:11px!important;line-height:1.55}
+      .save-dialog .save-persistence-box p strong{color:#304b6b}
+      .save-dialog .save-persistent-option{margin-top:10px;padding-top:10px;border-top:1px dashed #cfdeed}
+      .save-dialog .save-persistent-option span{display:block;color:#547086;font-size:11px;line-height:1.5}
+      .save-dialog .save-persistent-option button{width:100%;margin-top:8px;min-height:40px;border:1px solid #b9d4f5;border-radius:10px;background:#eef6ff;color:#1656a5;font-size:12px;font-weight:800;cursor:pointer}
+      .save-dialog .save-persistent-option button:hover{background:#e5f1ff}
+      .save-dialog .save-local-intro{margin:0 0 10px!important;color:#61748b!important;font-size:11px!important;font-weight:700}
+      @media(max-width:720px){
+        .save-dialog .save-persistence-box{margin:10px 0 12px;padding:10px}
+        .save-dialog .save-persistent-option button{min-height:42px;font-size:13px}
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
   function setCopiedStatus() {
     const status = $('sharePanelStatus');
     const value = $('shareUrlValue')?.value || '';
@@ -54,13 +79,13 @@
   }
 
   function installCombinedAction() {
-    if (installed) return true;
+    if (shareInstalled) return true;
     const actions = document.querySelector('.share-panel-actions');
     const field = $('shareUrlValue');
     const status = $('sharePanelStatus');
     if (!actions || !field || !status) return false;
 
-    installed = true;
+    shareInstalled = true;
     actions.replaceChildren();
 
     const button = document.createElement('button');
@@ -95,16 +120,57 @@
     });
 
     normalizeShareStatus();
-
-    const style = document.createElement('style');
-    style.textContent = '.share-panel-actions .share-copy-and-share{width:100%;min-height:44px;font-size:14px;font-weight:700}';
-    document.head.appendChild(style);
     return true;
   }
 
-  if (!installCombinedAction()) {
+  function installSavePersistenceGuide() {
+    if (saveInstalled) return true;
+    const dialog = $('saveDialog');
+    const form = $('saveDialogForm');
+    const title = form?.querySelector('h3');
+    if (!dialog || !form || !title) return false;
+
+    saveInstalled = true;
+    const existingIntro = title.nextElementSibling;
+
+    const guide = document.createElement('div');
+    guide.className = 'save-persistence-box';
+    guide.innerHTML = `
+      <div class="save-persistence-title">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v14H5zM8 5v5h8V5M8 19v-6h8v6"/></svg>
+        <span>本地方案仅保存在当前浏览器</span>
+      </div>
+      <p>更换设备、使用无痕模式或清理浏览器数据后，<strong>本地方案可能丢失</strong>。</p>
+      <div class="save-persistent-option">
+        <span>想长期保留或跨设备查看？可以生成一个包含当前完整方案的专属链接，自行收藏或发送给自己。</span>
+        <button id="saveDialogShare" type="button">生成并分享专属链接</button>
+      </div>`;
+    title.insertAdjacentElement('afterend', guide);
+
+    if (existingIntro?.tagName === 'P') {
+      existingIntro.textContent = '也可以给当前浏览器中的本地方案命名：';
+      existingIntro.classList.add('save-local-intro');
+    }
+
+    $('saveDialogShare')?.addEventListener('click', event => {
+      event.preventDefault();
+      if (dialog.open) dialog.close();
+      requestAnimationFrame(() => $('floatShare')?.click());
+    });
+
+    return true;
+  }
+
+  function installAll() {
+    installStyles();
+    const shareReady = installCombinedAction();
+    const saveReady = installSavePersistenceGuide();
+    return shareReady && saveReady;
+  }
+
+  if (!installAll()) {
     const observer = new MutationObserver(() => {
-      if (installCombinedAction()) observer.disconnect();
+      if (installAll()) observer.disconnect();
     });
     observer.observe(document.documentElement, { childList:true, subtree:true });
   }
