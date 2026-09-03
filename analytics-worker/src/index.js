@@ -1,50 +1,3 @@
-let schemaPromise = null;
-
-const SCHEMA = `
-CREATE TABLE IF NOT EXISTS visitor_global (
-  visitor_hash TEXT PRIMARY KEY,
-  first_seen TEXT NOT NULL,
-  last_seen TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS visitor_daily (
-  day TEXT NOT NULL,
-  visitor_hash TEXT NOT NULL,
-  PRIMARY KEY (day, visitor_hash)
-);
-CREATE TABLE IF NOT EXISTS daily_stats (
-  day TEXT PRIMARY KEY,
-  pv INTEGER NOT NULL DEFAULT 0,
-  uv INTEGER NOT NULL DEFAULT 0,
-  calculations INTEGER NOT NULL DEFAULT 0,
-  exports INTEGER NOT NULL DEFAULT 0
-);
-CREATE TABLE IF NOT EXISTS visit_location_daily (
-  day TEXT NOT NULL,
-  country TEXT NOT NULL,
-  region TEXT NOT NULL,
-  city TEXT NOT NULL,
-  pv INTEGER NOT NULL DEFAULT 0,
-  PRIMARY KEY (day, country, region, city)
-);
-CREATE TABLE IF NOT EXISTS calc_city_daily (
-  day TEXT NOT NULL,
-  city_id TEXT NOT NULL,
-  city_name TEXT NOT NULL,
-  count INTEGER NOT NULL DEFAULT 0,
-  PRIMARY KEY (day, city_id)
-);
-CREATE TABLE IF NOT EXISTS calc_amount_daily (
-  day TEXT NOT NULL,
-  bucket_start_wan INTEGER NOT NULL,
-  count INTEGER NOT NULL DEFAULT 0,
-  PRIMARY KEY (day, bucket_start_wan)
-);
-CREATE INDEX IF NOT EXISTS idx_visitor_daily_day ON visitor_daily(day);
-CREATE INDEX IF NOT EXISTS idx_location_daily_day ON visit_location_daily(day);
-CREATE INDEX IF NOT EXISTS idx_calc_city_daily_day ON calc_city_daily(day);
-CREATE INDEX IF NOT EXISTS idx_calc_amount_daily_day ON calc_amount_daily(day);
-`;
-
 function configuredOrigin(env) {
   return env.ALLOWED_ORIGIN || 'https://v0v0.github.io';
 }
@@ -76,7 +29,7 @@ function timeParts() {
     month: '2-digit',
     day: '2-digit'
   }).format(now);
-  return { ts: now.toISOString(), day, month: day.slice(0, 7) };
+  return { ts: now.toISOString(), day };
 }
 
 function geo(request) {
@@ -97,18 +50,10 @@ function finite(value, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
-async function ensureSchema(env) {
-  if (!schemaPromise) schemaPromise = env.DB.exec(SCHEMA);
-  try {
-    await schemaPromise;
-  } catch (error) {
-    schemaPromise = null;
-    throw error;
-  }
-}
-
 function hex(buffer) {
-  return [...new Uint8Array(buffer)].map(value => value.toString(16).padStart(2, '0')).join('');
+  return [...new Uint8Array(buffer)]
+    .map(value => value.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 async function visitorHash(request, env) {
@@ -218,8 +163,8 @@ async function recordExport(request, env) {
   const body = await request.json().catch(() => ({}));
   const p = mortgagePayload(body);
   if (!p) return { ok: false, status: 400, error: 'invalid payload' };
-  const t = timeParts();
 
+  const t = timeParts();
   await env.DB.prepare(`INSERT INTO daily_stats(day,pv,uv,calculations,exports)
     VALUES(?,0,0,0,1)
     ON CONFLICT(day) DO UPDATE SET exports=daily_stats.exports+1`)
@@ -235,15 +180,7 @@ async function stats(request, env) {
     return { ok: false, status: 401, error: 'unauthorized' };
   }
 
-  const [
-    totals,
-    totalUv,
-    daily,
-    monthly,
-    geoRows,
-    cityRows,
-    amountRows
-  ] = await Promise.all([
+  const [totals, totalUv, daily, monthly, geoRows, cityRows, amountRows] = await Promise.all([
     env.DB.prepare(`SELECT
       COALESCE(SUM(pv),0) AS visits,
       COALESCE(SUM(calculations),0) AS calculations,
@@ -306,19 +243,24 @@ export default {
     const responseOrigin = allowedOrigin || configuredOrigin(env);
     const url = new URL(request.url);
 
+    if (request.method === 'GET' && url.pathname === '/v1/health') {
+      return json({ ok: true }, 200, responseOrigin);
+    }
+
     if (request.method === 'OPTIONS') {
-      if (!allowedOrigin) return json({ ok: false, error: 'origin not allowed' }, 403, responseOrigin);
+      if (!allowedOrigin) {
+        return json({ ok: false, error: 'origin not allowed' }, 403, responseOrigin);
+      }
       return json({}, 204, responseOrigin);
     }
 
-    const isPublicWrite = request.method === 'POST' && ['/v1/visit', '/v1/calc', '/v1/export'].includes(url.pathname);
+    const isPublicWrite = request.method === 'POST' &&
+      ['/v1/visit', '/v1/calc', '/v1/export'].includes(url.pathname);
     if (isPublicWrite && !allowedOrigin) {
       return json({ ok: false, error: 'origin not allowed' }, 403, responseOrigin);
     }
 
     try {
-      await ensureSchema(env);
-
       if (request.method === 'POST' && url.pathname === '/v1/visit') {
         if (!await allowRate(request, env, 'VISIT_RATE_LIMITER')) {
           return json({ ok: false, error: 'rate limited' }, 429, responseOrigin);
@@ -326,6 +268,7 @@ export default {
         const result = await recordVisit(request, env);
         return json(result, result.status || 200, responseOrigin);
       }
+
       if (request.method === 'POST' && url.pathname === '/v1/calc') {
         if (!await allowRate(request, env, 'EVENT_RATE_LIMITER')) {
           return json({ ok: false, error: 'rate limited' }, 429, responseOrigin);
@@ -333,6 +276,7 @@ export default {
         const result = await recordCalc(request, env);
         return json(result, result.status || 200, responseOrigin);
       }
+
       if (request.method === 'POST' && url.pathname === '/v1/export') {
         if (!await allowRate(request, env, 'EVENT_RATE_LIMITER')) {
           return json({ ok: false, error: 'rate limited' }, 429, responseOrigin);
@@ -340,16 +284,15 @@ export default {
         const result = await recordExport(request, env);
         return json(result, result.status || 200, responseOrigin);
       }
+
       if (request.method === 'GET' && url.pathname === '/v1/stats') {
         const result = await stats(request, env);
         return json(result, result.status || 200, responseOrigin);
       }
-      if (request.method === 'GET' && url.pathname === '/v1/health') {
-        return json({ ok: true }, 200, responseOrigin);
-      }
+
       return json({ ok: false, error: 'not found' }, 404, responseOrigin);
     } catch (error) {
-      console.error(error);
+      console.error('analytics worker error', error?.message || error);
       return json({ ok: false, error: 'internal error' }, 500, responseOrigin);
     }
   }
