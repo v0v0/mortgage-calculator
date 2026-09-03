@@ -162,3 +162,48 @@
     loadConfig();
   }
 })();
+
+// Final display normalization. detail-loading.js is the last table renderer and some
+// columns may be written with Intl.NumberFormat after earlier formatters have run.
+// Normalize the final DOM so every zero-valued money cell in repayment details is a dash.
+(() => {
+  const ZERO_MONEY_RE = /^(?:CN¥|CNY\s*|¥|￥)?\s*[+-]?0(?:\.0+)?\s*$/i;
+  let queued = false;
+
+  function normalizeZeroMoney() {
+    ['annualBody', 'monthlyBody'].forEach(id => {
+      document.getElementById(id)?.querySelectorAll('td').forEach(cell => {
+        if (ZERO_MONEY_RE.test(cell.textContent.trim())) cell.textContent = '—';
+      });
+    });
+  }
+
+  function queueNormalize() {
+    if (queued) return;
+    queued = true;
+    queueMicrotask(() => {
+      queued = false;
+      normalizeZeroMoney();
+    });
+  }
+
+  function installZeroNormalizer() {
+    normalizeZeroMoney();
+    const detailCard = document.querySelector('.detail-card');
+    if (detailCard) {
+      new MutationObserver(queueNormalize).observe(detailCard, {
+        childList: true,
+        subtree: true,
+        characterData: true
+      });
+    }
+    setTimeout(normalizeZeroMoney, 80);
+    setTimeout(normalizeZeroMoney, 250);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', installZeroNormalizer, { once: true });
+  } else {
+    installZeroNormalizer();
+  }
+})();
