@@ -111,7 +111,12 @@
         <div class="comparison" id="comparison"></div>
       </section>
 
-      <section class="card detail-card compact-result-card">
+      <section class="card detail-card compact-result-card is-calculating">
+        <div class="detail-loading" id="detailLoading" role="status" aria-live="polite">
+          <span class="detail-spinner" aria-hidden="true"></span>
+          <span>正在生成还款明细…</span>
+        </div>
+
         <div class="section-title compact-title-row detail-main-heading">
           <h2>还款明细</h2>
           <div class="segmented detail-method-tabs" id="detailMethodTabs">
@@ -166,6 +171,7 @@
     <footer>
       <p id="sourceFooter"></p>
       <p>本工具仅供测算。商业房贷参考利率可能因银行、楼盘及借款人资质不同而变化，实际结果以贷款机构审批与合同为准。</p>
+      <p class="analytics-notice">访问统计启用时，仅记录匿名访客标识、国家/省级地区、房价与贷款参数、贷款/还款方式及导出行为用于产品统计；不保存原始 IP。</p>
     </footer>
   </main>
 
@@ -196,9 +202,11 @@
 
   <script src="./rate-verification-loader.js" defer></script>
   <script src="./app.js" defer></script>
+  <script src="./stability-prelude.js" defer></script>
   <script src="./enhancements.js" defer></script>
   <script src="./ui-layout-sync.js" defer></script>
   <script src="./calculation-fixes.js" defer></script>
+  <script src="./detail-loading.js" defer></script>
   <script src="./analytics.js" defer></script>
 </body>
 </html>
