@@ -1,39 +1,57 @@
 (() => {
-  const BAIDU_SITE_ID = '67635ed0d1b5200fa4df6891bf568485';
   const QUALIFIED_VISIT_MS = 2_000;
   const CALC_IDLE_MS = 2_000;
-  const BAIDU_RETRY_MS = 5_000;
+  const CLOUDFLARE_RETRY_MS = 5_000;
 
   let calcTimer = null;
   let visitTimer = null;
   let visitRecorded = false;
+  let cloudflareVisitRecorded = false;
+  let cloudflareRetryTimer = null;
   let interacted = false;
   let lastCalcPayload = '';
   let visibleElapsedMs = 0;
   let visibleStartedAt = document.visibilityState === 'visible' ? performance.now() : null;
+  let cloudflareConfigPromise = null;
 
   window._hmt = window._hmt || [];
-  // Keep the existing analytics definition: a PV is counted only after the page
-  // has been visible for a cumulative 2 seconds. This must be queued before hm.js.
-  window._hmt.push(['_setAutoPageview', false]);
 
-  function loadBaiduAnalytics() {
-    if (document.querySelector(`script[data-baidu-tongji="${BAIDU_SITE_ID}"]`)) return;
+  function loadCloudflareConfig() {
+    if (cloudflareConfigPromise) return cloudflareConfigPromise;
 
-    const hm = document.createElement('script');
-    hm.src = `https://hm.baidu.com/hm.js?${BAIDU_SITE_ID}`;
-    hm.async = true;
-    hm.dataset.baiduTongji = BAIDU_SITE_ID;
-    hm.onerror = () => {
-      hm.remove();
-      setTimeout(loadBaiduAnalytics, BAIDU_RETRY_MS);
-    };
+    cloudflareConfigPromise = fetch('./data/analytics-config.json', { cache: 'no-store' })
+      .then(res => {
+        if (!res.ok) throw new Error(`analytics config HTTP ${res.status}`);
+        return res.json();
+      })
+      .catch(error => {
+        console.warn('Cloudflare analytics config unavailable:', error);
+        cloudflareConfigPromise = null;
+        return null;
+      });
 
-    const firstScript = document.getElementsByTagName('script')[0];
-    if (firstScript?.parentNode) {
-      firstScript.parentNode.insertBefore(hm, firstScript);
-    } else {
-      document.head.appendChild(hm);
+    return cloudflareConfigPromise;
+  }
+
+  function cloudflareEndpoint(cfg, path) {
+    return `${String(cfg.endpoint).replace(/\/$/, '')}/v1/${path}`;
+  }
+
+  async function sendCloudflare(path, payload = {}) {
+    const cfg = await loadCloudflareConfig();
+    if (!cfg?.enabled || !cfg?.endpoint) return 'disabled';
+
+    try {
+      const res = await fetch(cloudflareEndpoint(cfg, path), {
+        method: 'POST',
+        mode: 'cors',
+        keepalive: true,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      return res.ok ? 'ok' : 'failed';
+    } catch (_) {
+      return 'failed';
     }
   }
 
@@ -98,6 +116,27 @@
     visitTimer = setTimeout(recordQualifiedVisit, remaining);
   }
 
+  async function recordCloudflareVisit() {
+    if (cloudflareVisitRecorded) return;
+
+    const status = await sendCloudflare('visit');
+    if (status === 'ok') {
+      cloudflareVisitRecorded = true;
+      if (cloudflareRetryTimer !== null) {
+        clearTimeout(cloudflareRetryTimer);
+        cloudflareRetryTimer = null;
+      }
+      return;
+    }
+
+    if (status === 'failed' && cloudflareRetryTimer === null) {
+      cloudflareRetryTimer = setTimeout(() => {
+        cloudflareRetryTimer = null;
+        recordCloudflareVisit();
+      }, CLOUDFLARE_RETRY_MS);
+    }
+  }
+
   function recordQualifiedVisit() {
     clearVisitTimer();
     if (visitRecorded || document.visibilityState !== 'visible') return;
@@ -108,6 +147,7 @@
 
     visitRecorded = true;
     trackPageview();
+    recordCloudflareVisit();
   }
 
   function bindQualifiedVisitTracking() {
@@ -136,6 +176,7 @@
     trackEvent('loan_amount_bucket', amountBucket(payload.loanAmountWan));
     trackEvent('loan_type', payload.loanType);
     trackEvent('repayment_method', payload.repaymentMethod);
+    sendCloudflare('calc', payload);
   }
 
   function queueCalculation() {
@@ -181,11 +222,12 @@
       const payload = snapshot();
       if (!validSnapshot(payload)) return;
       trackEvent('export', payload.cityName, Math.round(payload.loanAmountWan));
+      sendCloudflare('export', payload);
     }, true);
   }
 
   function startAnalytics() {
-    loadBaiduAnalytics();
+    loadCloudflareConfig();
     bindQualifiedVisitTracking();
     bindCalculationTracking();
     bindExportTracking();
