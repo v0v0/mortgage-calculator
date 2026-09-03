@@ -1,5 +1,5 @@
 (() => {
-  const QUALIFIED_VISIT_MS = 10_000;
+  const QUALIFIED_VISIT_MS = 2_000;
   const CALC_IDLE_MS = 2_000;
 
   let cfg = null;
