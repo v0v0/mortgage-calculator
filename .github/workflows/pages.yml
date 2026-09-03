@@ -29,6 +29,7 @@ jobs:
           node --check rate-verification-loader.js
           node --check enhancements.js
           node --check ui-layout-sync.js
+          node --check calculation-fixes.js
           node --check analytics.js
       - name: Validate rate data
         run: |
@@ -65,6 +66,7 @@ jobs:
           test -f ux-v3.css
           test -f enhancements.js
           test -f ui-layout-sync.js
+          test -f calculation-fixes.js
           test -f PRODUCT_REQUIREMENTS.md
           test -f RATE_VERIFICATION.md
           test -f rate-verification-loader.js
