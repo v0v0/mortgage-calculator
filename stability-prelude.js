@@ -2,6 +2,40 @@
   const nativeSetInterval = window.setInterval.bind(window);
   const nativeSetTimeout = window.setTimeout.bind(window);
 
+  function hardenLegacyDetailScope() {
+    if (!document.getElementById('legacy-scope-guard-style')) {
+      const style = document.createElement('style');
+      style.id = 'legacy-scope-guard-style';
+      style.textContent = '#detailScopeWrap{display:none!important;visibility:hidden!important;pointer-events:none!important;position:absolute!important;width:0!important;height:0!important;overflow:hidden!important;opacity:0!important}#detailScopeWrap *{pointer-events:none!important}';
+      document.head.appendChild(style);
+    }
+
+    const disable = () => {
+      const wrap = document.getElementById('detailScopeWrap');
+      if (!wrap) return false;
+      wrap.hidden = true;
+      wrap.setAttribute('aria-hidden', 'true');
+      wrap.setAttribute('inert', '');
+      wrap.classList.add('compat-hidden');
+      wrap.style.setProperty('display', 'none', 'important');
+      wrap.style.setProperty('pointer-events', 'none', 'important');
+      wrap.querySelectorAll('button').forEach(button => {
+        button.disabled = true;
+        button.tabIndex = -1;
+        button.setAttribute('aria-hidden', 'true');
+      });
+      return true;
+    };
+
+    if (disable()) return;
+    const observer = new MutationObserver(() => {
+      if (disable()) observer.disconnect();
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+  }
+
+  hardenLegacyDetailScope();
+
   // Two legacy initialization loops repeatedly rebuild the same result DOM for
   // several seconds. Replace only those known loops with a small number of
   // settling passes, then restore the native timer implementation after load.
@@ -169,6 +203,7 @@
 
   window.addEventListener('load', () => {
     nativeSetTimeout(() => {
+      hardenLegacyDetailScope();
       decorateComparison();
       window.setInterval = nativeSetInterval;
     }, 0);
