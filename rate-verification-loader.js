@@ -2,6 +2,9 @@
   const nativeFetch = window.fetch.bind(window);
   const RATE_PATH = 'data/mortgage-rates.json';
   const VERIFY_PATH = './data/rate-verification-2026-09-03.json';
+  const CURRENT_STATE_KEY = 'mortgage-calculator-state-v2';
+  const LEGACY_STATE_KEY = 'mortgage-calculator-state-v1';
+  const SCOPED_STATE_PREFIX = 'mortgage-calculator-state-v3:';
   const CITY_NAMES = {
     guiyang: '贵阳',
     taiyuan: '太原',
@@ -14,6 +17,126 @@
     window.__mortgageSharePayload = location.hash.slice(3);
     history.replaceState(null, '', location.pathname + location.search);
   }
+
+  const nativeStorageGet = Storage.prototype.getItem;
+  const nativeStorageSet = Storage.prototype.setItem;
+  const nativeStorageRemove = Storage.prototype.removeItem;
+
+  function currentStateScope() {
+    const params = new URLSearchParams(location.search);
+    params.sort();
+    const query = params.toString();
+    const sharePayload = window.__mortgageSharePayload || '';
+    return `${location.pathname}${query ? `?${query}` : ''}${sharePayload ? `#s=${sharePayload}` : ''}`;
+  }
+
+  const stateScope = currentStateScope();
+  const scopedStateKey = `${SCOPED_STATE_PREFIX}${encodeURIComponent(stateScope)}`;
+  const isDefaultStateScope = !location.search && !window.__mortgageSharePayload;
+
+  function enrichSavedState(value) {
+    try {
+      const state = JSON.parse(value);
+      if (!state || typeof state !== 'object' || Array.isArray(state)) return value;
+      const customYear = document.getElementById('customYear');
+      const advancedDetails = document.getElementById('advancedDetails');
+      if (customYear) state.customYear = customYear.value;
+      if (advancedDetails) state.advancedDetailsOpen = advancedDetails.open;
+      return JSON.stringify(state);
+    } catch (_) {
+      return value;
+    }
+  }
+
+  function installScopedStateStorage() {
+    Storage.prototype.getItem = function scopedGetItem(key) {
+      if (this === localStorage && key === CURRENT_STATE_KEY) {
+        try {
+          const tabState = nativeStorageGet.call(sessionStorage, scopedStateKey);
+          if (tabState !== null) return tabState;
+        } catch (_) {}
+        try {
+          const persistedState = nativeStorageGet.call(localStorage, scopedStateKey);
+          if (persistedState !== null) {
+            try { nativeStorageSet.call(sessionStorage, scopedStateKey, persistedState); } catch (_) {}
+            return persistedState;
+          }
+        } catch (_) {}
+        if (isDefaultStateScope) return nativeStorageGet.call(localStorage, CURRENT_STATE_KEY);
+        return null;
+      }
+
+      // Prevent the old global v1 state from leaking into a parameterized/share page.
+      if (this === localStorage && key === LEGACY_STATE_KEY && !isDefaultStateScope) return null;
+      return nativeStorageGet.call(this, key);
+    };
+
+    Storage.prototype.setItem = function scopedSetItem(key, value) {
+      if (this === localStorage && key === CURRENT_STATE_KEY) {
+        const state = enrichSavedState(String(value));
+        try { nativeStorageSet.call(sessionStorage, scopedStateKey, state); } catch (_) {}
+        nativeStorageSet.call(localStorage, scopedStateKey, state);
+        return;
+      }
+      return nativeStorageSet.call(this, key, value);
+    };
+
+    Storage.prototype.removeItem = function scopedRemoveItem(key) {
+      if (this === localStorage && key === CURRENT_STATE_KEY) {
+        try { nativeStorageRemove.call(sessionStorage, scopedStateKey); } catch (_) {}
+        try { nativeStorageRemove.call(localStorage, scopedStateKey); } catch (_) {}
+        if (isDefaultStateScope) {
+          try { nativeStorageRemove.call(localStorage, CURRENT_STATE_KEY); } catch (_) {}
+        }
+        return;
+      }
+      if (this === localStorage && key === LEGACY_STATE_KEY && !isDefaultStateScope) return;
+      return nativeStorageRemove.call(this, key);
+    };
+  }
+
+  function readScopedStateDirectly() {
+    let raw = null;
+    try { raw = nativeStorageGet.call(sessionStorage, scopedStateKey); } catch (_) {}
+    if (raw === null) {
+      try { raw = nativeStorageGet.call(localStorage, scopedStateKey); } catch (_) {}
+    }
+    if (raw === null && isDefaultStateScope) {
+      try { raw = nativeStorageGet.call(localStorage, CURRENT_STATE_KEY); } catch (_) {}
+    }
+    if (!raw) return null;
+    try { return JSON.parse(raw); } catch (_) { return null; }
+  }
+
+  function restoreSupplementalState() {
+    const state = readScopedStateDirectly();
+    if (!state) return;
+    const customYear = document.getElementById('customYear');
+    const advancedDetails = document.getElementById('advancedDetails');
+    if (customYear && state.customYear !== undefined) customYear.value = state.customYear;
+    if (advancedDetails && state.advancedDetailsOpen !== undefined) advancedDetails.open = !!state.advancedDetailsOpen;
+    if (customYear && typeof window.renderYearCards === 'function') {
+      try { window.renderYearCards(); } catch (_) {}
+    }
+  }
+
+  function bindSupplementalAutosave() {
+    const save = () => {
+      if (typeof window.saveState === 'function') {
+        try { window.saveState(); } catch (_) {}
+      }
+    };
+    document.getElementById('customYear')?.addEventListener('input', save);
+    document.getElementById('advancedDetails')?.addEventListener('toggle', save);
+    window.addEventListener('pagehide', save);
+  }
+
+  installScopedStateStorage();
+  window.addEventListener('DOMContentLoaded', () => {
+    bindSupplementalAutosave();
+    restoreSupplementalState();
+    setTimeout(restoreSupplementalState, 200);
+  }, { once: true });
 
   function loadShareTitlePatch() {
     if (document.querySelector('script[data-mortgage-share-title-patch]')) return;
