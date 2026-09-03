@@ -27,6 +27,8 @@ jobs:
         run: |
           node --check app.js
           node --check rate-verification-loader.js
+          node --check enhancements.js
+          node --check analytics.js
       - name: Validate rate data
         run: |
           python -m json.tool data/mortgage-rates.json > /dev/null
@@ -58,6 +60,8 @@ jobs:
         run: |
           test -f index.html
           test -f styles.css
+          test -f enhancements.css
+          test -f enhancements.js
           test -f PRODUCT_REQUIREMENTS.md
           test -f RATE_VERIFICATION.md
           test -f rate-verification-loader.js
