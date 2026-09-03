@@ -1,8 +1,9 @@
 (() => {
+  const BAIDU_SITE_ID = '67635ed0d1b5200fa4df6891bf568485';
   const QUALIFIED_VISIT_MS = 2_000;
   const CALC_IDLE_MS = 2_000;
+  const BAIDU_RETRY_MS = 5_000;
 
-  let cfg = null;
   let calcTimer = null;
   let visitTimer = null;
   let visitRecorded = false;
@@ -11,37 +12,41 @@
   let visibleElapsedMs = 0;
   let visibleStartedAt = document.visibilityState === 'visible' ? performance.now() : null;
 
-  async function loadConfig() {
-    try {
-      const res = await fetch('./data/analytics-config.json', { cache: 'no-store' });
-      cfg = await res.json();
-      if (!cfg?.enabled || !cfg?.endpoint) return;
-      bindQualifiedVisitTracking();
-      bindCalculationTracking();
-      bindExportTracking();
-    } catch (e) {
-      console.warn('analytics disabled:', e);
+  window._hmt = window._hmt || [];
+  // Keep the existing analytics definition: a PV is counted only after the page
+  // has been visible for a cumulative 2 seconds. This must be queued before hm.js.
+  window._hmt.push(['_setAutoPageview', false]);
+
+  function loadBaiduAnalytics() {
+    if (document.querySelector(`script[data-baidu-tongji="${BAIDU_SITE_ID}"]`)) return;
+
+    const hm = document.createElement('script');
+    hm.src = `https://hm.baidu.com/hm.js?${BAIDU_SITE_ID}`;
+    hm.async = true;
+    hm.dataset.baiduTongji = BAIDU_SITE_ID;
+    hm.onerror = () => {
+      hm.remove();
+      setTimeout(loadBaiduAnalytics, BAIDU_RETRY_MS);
+    };
+
+    const firstScript = document.getElementsByTagName('script')[0];
+    if (firstScript?.parentNode) {
+      firstScript.parentNode.insertBefore(hm, firstScript);
+    } else {
+      document.head.appendChild(hm);
     }
   }
 
-  function endpoint(path) {
-    return `${String(cfg.endpoint).replace(/\/$/, '')}/v1/${path}`;
+  function trackPageview() {
+    let path = `${location.pathname}${location.search}`;
+    if (!path.startsWith('/')) path = `/${path}`;
+    window._hmt.push(['_trackPageview', path]);
   }
 
-  async function send(path, payload = {}) {
-    if (!cfg?.enabled || !cfg?.endpoint) return false;
-    try {
-      const res = await fetch(endpoint(path), {
-        method: 'POST',
-        mode: 'cors',
-        keepalive: true,
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      return res.ok;
-    } catch (_) {
-      return false;
-    }
+  function trackEvent(action, label, value) {
+    const event = ['_trackEvent', 'mortgage', action, String(label || 'unknown')];
+    if (Number.isFinite(value)) event.push(value);
+    window._hmt.push(event);
   }
 
   function activeLoanType() {
@@ -69,6 +74,11 @@
     return payload.city && Number.isFinite(payload.loanAmountWan) && payload.loanAmountWan > 0;
   }
 
+  function amountBucket(loanAmountWan) {
+    const start = Math.floor(loanAmountWan / 10) * 10;
+    return `${start}-${start + 10}万`;
+  }
+
   function currentVisibleElapsed() {
     if (visibleStartedAt === null) return visibleElapsedMs;
     return visibleElapsedMs + Math.max(0, performance.now() - visibleStartedAt);
@@ -88,7 +98,7 @@
     visitTimer = setTimeout(recordQualifiedVisit, remaining);
   }
 
-  async function recordQualifiedVisit() {
+  function recordQualifiedVisit() {
     clearVisitTimer();
     if (visitRecorded || document.visibilityState !== 'visible') return;
     if (currentVisibleElapsed() < QUALIFIED_VISIT_MS) {
@@ -97,11 +107,7 @@
     }
 
     visitRecorded = true;
-    const ok = await send('visit');
-    if (!ok) {
-      visitRecorded = false;
-      setTimeout(armVisitTimer, 5_000);
-    }
+    trackPageview();
   }
 
   function bindQualifiedVisitTracking() {
@@ -124,6 +130,14 @@
     });
   }
 
+  function recordCalculation(payload) {
+    trackEvent('calculate', 'valid', Math.round(payload.loanAmountWan));
+    trackEvent('calculate_city', payload.cityName);
+    trackEvent('loan_amount_bucket', amountBucket(payload.loanAmountWan));
+    trackEvent('loan_type', payload.loanType);
+    trackEvent('repayment_method', payload.repaymentMethod);
+  }
+
   function queueCalculation() {
     if (!interacted) return;
     clearTimeout(calcTimer);
@@ -133,7 +147,7 @@
       const signature = JSON.stringify(payload);
       if (signature === lastCalcPayload) return;
       lastCalcPayload = signature;
-      send('calc', payload);
+      recordCalculation(payload);
     }, CALC_IDLE_MS);
   }
 
@@ -166,14 +180,21 @@
       if (!button) return;
       const payload = snapshot();
       if (!validSnapshot(payload)) return;
-      send('export', payload);
+      trackEvent('export', payload.cityName, Math.round(payload.loanAmountWan));
     }, true);
   }
 
+  function startAnalytics() {
+    loadBaiduAnalytics();
+    bindQualifiedVisitTracking();
+    bindCalculationTracking();
+    bindExportTracking();
+  }
+
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', loadConfig, { once: true });
+    document.addEventListener('DOMContentLoaded', startAnalytics, { once: true });
   } else {
-    loadConfig();
+    startAnalytics();
   }
 })();
 
