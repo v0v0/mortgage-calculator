@@ -7,6 +7,7 @@
   <meta name="description" content="中国大陆房贷利率计算器：商贷、公积金、组合贷，等额本息/等额本金对比与逐月明细。" />
   <title>房贷利率计算器</title>
   <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="./enhancements.css" />
 </head>
 <body>
   <main class="page">
@@ -102,67 +103,63 @@
       </details>
     </section>
 
-    <section class="card">
-      <div class="section-title"><div><p class="section-kicker">STEP 02</p><h2>当前还款方案</h2></div><span class="method-badge" id="selectedMethodBadge">等额本息</span></div>
-      <div class="selected-summary" id="selectedSummary"></div>
-    </section>
+    <div id="resultsExportArea">
+      <div class="print-result-header" id="printResultHeader"></div>
 
-    <section class="card comparison-card-wrap">
-      <div class="section-title"><div><p class="section-kicker">COMPARE</p><h2>方案对比</h2></div><span class="muted">两种方式基于同一贷款参数自动比较</span></div>
-      <div class="comparison" id="comparison"></div>
-    </section>
+      <section class="card">
+        <div class="section-title"><div><p class="section-kicker">STEP 02</p><h2>当前还款方案</h2></div><span class="method-badge" id="selectedMethodBadge">等额本息</span></div>
+        <div class="selected-summary" id="selectedSummary"></div>
+      </section>
 
-    <section class="card chart-card">
-      <div class="section-title"><div><p class="section-kicker">TREND</p><h2>还款趋势</h2></div><span class="method-badge subtle" id="chartMethodBadge">等额本息</span></div>
-      <canvas id="trendChart" height="320"></canvas>
-      <div class="legend">
-        <span><i class="legend-line remaining"></i>剩余本金</span>
-        <span><i class="legend-line principal"></i>累计本金</span>
-        <span><i class="legend-line interest"></i>累计利息</span>
-      </div>
-    </section>
+      <section class="card comparison-card-wrap">
+        <div class="section-title"><div><p class="section-kicker">COMPARE</p><h2>方案对比</h2></div><span class="muted">两种方式基于同一贷款参数自动比较</span></div>
+        <div class="comparison" id="comparison"></div>
+      </section>
 
-    <section class="card">
-      <div class="section-title"><div><p class="section-kicker">MILESTONE</p><h2>关键年份</h2></div><label class="mini-label">自定义第 <input id="customYear" type="number" min="1" max="30" value="8" /> 年</label></div>
-      <div class="year-cards" id="yearCards"></div>
-    </section>
-
-    <section class="card detail-card">
-      <div class="section-title detail-heading">
-        <div><p class="section-kicker">DETAILS</p><h2>还款明细</h2></div>
-        <div class="detail-view-tabs segmented" id="detailViewTabs">
-          <button data-value="annual" class="active">年度汇总</button>
-          <button data-value="monthly">每月明细</button>
+      <section class="card chart-card">
+        <div class="section-title"><div><p class="section-kicker">TREND</p><h2>还款趋势</h2></div><span class="method-badge subtle" id="chartMethodBadge">等额本息</span></div>
+        <canvas id="trendChart" height="320"></canvas>
+        <div class="legend">
+          <span><i class="legend-line remaining"></i>剩余本金</span>
+          <span><i class="legend-line principal"></i>累计本金</span>
+          <span><i class="legend-line interest"></i>累计利息</span>
         </div>
-      </div>
+      </section>
 
-      <div class="detail-toolbar">
-        <div>
-          <span class="toolbar-label">还款方式</span>
-          <div class="segmented compact" id="detailMethodTabs">
-            <button data-value="equalPayment" class="active">等额本息</button>
-            <button data-value="equalPrincipal">等额本金</button>
+      <section class="card">
+        <div class="section-title"><div><p class="section-kicker">MILESTONE</p><h2>关键年份</h2></div><label class="mini-label">自定义第 <input id="customYear" type="number" min="1" max="30" value="8" /> 年</label></div>
+        <div class="year-cards" id="yearCards"></div>
+      </section>
+
+      <section class="card detail-card">
+        <div class="section-title detail-heading">
+          <div><p class="section-kicker">DETAILS</p><h2>还款明细</h2></div>
+          <div class="detail-view-tabs segmented" id="detailViewTabs">
+            <button data-value="annual" class="active">年度汇总</button>
+            <button data-value="monthly">每月明细</button>
           </div>
         </div>
-        <div id="detailScopeWrap">
-          <span class="toolbar-label">贷款明细</span>
-          <div class="segmented compact scope-tabs" id="detailScopeTabs">
-            <button data-value="total" class="active">合计</button>
-            <button data-value="commercial">商业贷款</button>
-            <button data-value="provident">公积金贷款</button>
+
+        <div class="detail-toolbar">
+          <div>
+            <span class="toolbar-label">还款方式</span>
+            <div class="segmented compact" id="detailMethodTabs">
+              <button data-value="equalPayment" class="active">等额本息</button>
+              <button data-value="equalPrincipal">等额本金</button>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div id="annualPanel" class="detail-panel active">
-        <div class="table-wrap"><table><thead><tr><th>年度</th><th>年初本金</th><th>偿还本金</th><th>支付利息</th><th>年度还款</th><th>年末本金</th></tr></thead><tbody id="annualBody"></tbody></table></div>
-      </div>
+        <div id="annualPanel" class="detail-panel active">
+          <div class="table-wrap"><table><thead><tr id="annualHead"></tr></thead><tbody id="annualBody"></tbody></table></div>
+        </div>
 
-      <div id="monthlyPanel" class="detail-panel">
-        <p class="muted detail-note">完整列出贷款期间每个月的月供、本金、利息、提前还款和剩余本金。</p>
-        <div class="table-wrap monthly-wrap"><table><thead><tr><th>期数</th><th>日期</th><th>月还款</th><th>本金</th><th>利息</th><th>提前还款</th><th>累计本金</th><th>累计利息</th><th>剩余本金</th></tr></thead><tbody id="monthlyBody"></tbody></table></div>
-      </div>
-    </section>
+        <div id="monthlyPanel" class="detail-panel">
+          <p class="muted detail-note">完整列出每月合计及商贷 / 公积金组成；不存在的贷款类型不会显示对应列。</p>
+          <div class="table-wrap monthly-wrap"><table><thead><tr id="monthlyHead"></tr></thead><tbody id="monthlyBody"></tbody></table></div>
+        </div>
+      </section>
+    </div>
 
     <section class="card saved-card">
       <div class="section-title"><div><p class="section-kicker">LOCAL</p><h2>本地方案</h2></div><button id="savePlan" class="primary">保存当前方案</button></div>
@@ -174,6 +171,18 @@
       <p>本工具仅供测算。商业房贷参考利率可能因银行、楼盘及借款人资质不同而变化，实际结果以贷款机构审批与合同为准。</p>
     </footer>
   </main>
+
+  <nav class="floating-tools" aria-label="快捷工具">
+    <button id="floatTop" type="button" title="回到顶部" aria-label="回到顶部">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>
+    </button>
+    <button id="floatPdf" type="button" title="导出房贷结果为 PDF" aria-label="导出房贷结果为 PDF">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7zM14 3v5h5M9 14h6M9 17h6"/></svg>
+    </button>
+    <button id="floatSave" type="button" title="保存当前方案" aria-label="保存当前方案">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h12l2 2v14H5zM8 4v6h8V4M8 20v-6h8v6"/></svg>
+    </button>
+  </nav>
 
   <dialog id="saveDialog" class="save-dialog">
     <form method="dialog" id="saveDialogForm">
@@ -190,6 +199,7 @@
 
   <script src="./rate-verification-loader.js" defer></script>
   <script src="./app.js" defer></script>
+  <script src="./enhancements.js" defer></script>
   <script src="./analytics.js" defer></script>
 </body>
 </html>
