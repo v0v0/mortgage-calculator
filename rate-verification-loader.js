@@ -15,11 +15,20 @@
     history.replaceState(null, '', location.pathname + location.search);
   }
 
+  function loadShareUiPatch() {
+    if (document.querySelector('script[data-mortgage-share-ui-patch]')) return;
+    const patch = document.createElement('script');
+    patch.src = './share-ui-patch.js';
+    patch.dataset.mortgageShareUiPatch = '1';
+    document.body.appendChild(patch);
+  }
+
   function loadShareState() {
     if (document.querySelector('script[data-mortgage-share-state]')) return;
     const script = document.createElement('script');
     script.src = './share-state.js';
     script.dataset.mortgageShareState = '1';
+    script.addEventListener('load', loadShareUiPatch, { once: true });
     document.body.appendChild(script);
   }
 
