@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#f7f8fa" />
+  <meta name="description" content="中国大陆房贷利率计算器：商贷、公积金、组合贷，等额本息/等额本金对比与逐月明细。" />
+  <title>房贷利率计算器</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">MORTGAGE CALCULATOR</p>
+        <h1>房贷利率计算器</h1>
+        <p class="subtitle">商贷 · 公积金 · 组合贷｜等额本息 / 等额本金｜逐月还款明细</p>
+      </div>
+      <div class="data-badge" id="dataBadge">利率数据加载中…</div>
+    </header>
+
+    <section class="card form-card">
+      <div class="section-title"><h2>贷款参数</h2><button class="ghost" id="resetBtn">恢复默认</button></div>
+      <div class="grid grid-4">
+        <label>购房城市<select id="city"></select></label>
+        <label>住房套数<select id="homeType"><option value="first">首套</option><option value="second">二套</option></select></label>
+        <label>房屋总价（万元）<input id="housePrice" type="number" min="1" step="1" value="800" /></label>
+        <label>首付比例（%）<input id="downPaymentRatio" type="number" min="0" max="100" step="1" value="35" /></label>
+      </div>
+      <div class="summary-strip">
+        <span>首付 <b id="downPaymentAmount">-</b></span>
+        <span>贷款总额 <b id="loanTotal">-</b></span>
+      </div>
+
+      <div class="segmented" id="loanTypeTabs">
+        <button data-value="commercial">商业贷款</button>
+        <button data-value="provident">公积金贷款</button>
+        <button data-value="combined" class="active">组合贷款</button>
+      </div>
+
+      <div class="grid grid-4 loan-grid">
+        <label id="providentAmountWrap">公积金贷款（万元）<input id="providentAmount" type="number" min="0" step="1" value="120" /></label>
+        <label>基础贷款期限<select id="termYears"></select></label>
+        <label id="commercialAmountWrap">商业贷款（自动）<input id="commercialAmount" type="text" disabled /></label>
+        <label>还款起始月份<input id="startMonth" type="month" /></label>
+      </div>
+
+      <div class="rate-panel" id="commercialRatePanel">
+        <div class="rate-head"><div><strong>商业贷款利率</strong><small id="commercialSource"></small></div><label class="switch-line"><input id="directCommercialRate" type="checkbox" /> 直接输入执行利率</label></div>
+        <div class="rate-formula" id="bpRateEditor">
+          <span>LPR (<b id="lprValue">3.50%</b>)</span>
+          <select id="bpSign"><option value="-">−</option><option value="+">+</option></select>
+          <input id="bpValue" type="number" step="1" value="45" aria-label="BP数值" />
+          <span>BP =</span>
+          <strong id="calculatedCommercialRate">3.05%</strong>
+        </div>
+        <label class="inline-rate">执行年利率（%）<input id="commercialRate" type="number" step="0.001" value="3.05" /></label>
+      </div>
+
+      <div class="rate-panel" id="providentRatePanel">
+        <div class="rate-head"><div><strong>公积金贷款利率</strong><small id="providentHint">根据套数及期限自动加载，可手动修改</small></div></div>
+        <label class="inline-rate">执行年利率（%）<input id="providentRate" type="number" step="0.001" value="2.6" /></label>
+      </div>
+
+      <details class="advanced" id="advancedDetails">
+        <summary>高级自定义</summary>
+        <div class="advanced-body">
+          <label class="check"><input id="separateTerms" type="checkbox" /> 组合贷分别设置商贷 / 公积金期限</label>
+          <div class="grid grid-2 hidden" id="separateTermsPanel">
+            <label>商贷期限<select id="commercialTermYears"></select></label>
+            <label>公积金期限<select id="providentTermYears"></select></label>
+          </div>
+          <div class="prepay-head"><strong>提前还款</strong><button class="ghost" id="addPrepayment">+ 添加</button></div>
+          <div id="prepaymentList" class="prepayment-list"></div>
+          <p class="hint">提前还款按所选目标贷款处理；“缩短期限”会在后续保持原计划月供附近，直至提前结清。</p>
+        </div>
+      </details>
+    </section>
+
+    <section class="card">
+      <div class="section-title"><h2>方案对比</h2><span class="muted">输入变化后自动重算</span></div>
+      <div class="comparison" id="comparison"></div>
+    </section>
+
+    <section class="card">
+      <div class="section-title"><h2>还款趋势</h2><div class="segmented compact"><button class="active" data-chart-mode="equalPayment">等额本息</button><button data-chart-mode="equalPrincipal">等额本金</button></div></div>
+      <canvas id="trendChart" height="300"></canvas>
+      <div class="legend"><span>— 剩余本金</span><span>— 累计本金</span><span>— 累计利息</span></div>
+    </section>
+
+    <section class="card">
+      <div class="section-title"><h2>关键年份</h2><div><label class="mini-label">自定义第 <input id="customYear" type="number" min="1" max="30" value="8" /> 年</label></div></div>
+      <div class="year-cards" id="yearCards"></div>
+    </section>
+
+    <section class="card">
+      <div class="section-title"><h2>年度汇总</h2><div class="segmented compact"><button class="active" data-annual-mode="equalPayment">等额本息</button><button data-annual-mode="equalPrincipal">等额本金</button></div></div>
+      <div class="table-wrap"><table><thead><tr><th>年度</th><th>年初本金</th><th>偿还本金</th><th>支付利息</th><th>年度还款</th><th>年末本金</th></tr></thead><tbody id="annualBody"></tbody></table></div>
+    </section>
+
+    <section class="card monthly-card">
+      <div class="section-title"><div><h2>每月还款明细</h2><p class="muted">完整列出贷款期间每个月的还款、本金、利息和剩余本金。</p></div><div class="toolbar"><select id="detailMethod"><option value="equalPayment">等额本息</option><option value="equalPrincipal">等额本金</option></select><select id="detailScope"><option value="total">合计</option><option value="commercial">商业贷款</option><option value="provident">公积金贷款</option></select></div></div>
+      <div class="table-wrap monthly-wrap"><table><thead><tr><th>期数</th><th>日期</th><th>月还款</th><th>本金</th><th>利息</th><th>累计本金</th><th>累计利息</th><th>剩余本金</th></tr></thead><tbody id="monthlyBody"></tbody></table></div>
+    </section>
+
+    <section class="card saved-card">
+      <div class="section-title"><h2>本地方案</h2><button id="savePlan" class="primary">保存当前方案</button></div>
+      <div id="savedPlans" class="saved-plans"></div>
+    </section>
+
+    <footer>
+      <p id="sourceFooter"></p>
+      <p>本工具仅供测算。商业房贷参考利率可能因银行、楼盘及借款人资质不同而变化，实际结果以贷款机构审批与合同为准。</p>
+    </footer>
+  </main>
+  <script src="./app.js" defer></script>
+</body>
+</html>
