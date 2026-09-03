@@ -1,0 +1,192 @@
+name: Deploy Cloudflare Analytics
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cloudflare-analytics
+  cancel-in-progress: false
+
+env:
+  WORKER_NAME: mortgage-calculator-analytics
+  D1_NAME: mortgage-calculator-analytics
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate required secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          UV_HASH_KEY: ${{ secrets.UV_HASH_KEY }}
+          STATS_TOKEN: ${{ secrets.STATS_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          test -n "$UV_HASH_KEY"
+          test -n "$STATS_TOKEN"
+
+      - name: Install pinned Wrangler
+        working-directory: analytics-worker
+        run: npm install --no-audit --no-fund
+
+      - name: Create or discover D1 database
+        id: d1
+        working-directory: analytics-worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+
+          find_db_id() {
+            npx wrangler d1 list --json | node -e '
+              let input = "";
+              process.stdin.on("data", chunk => input += chunk);
+              process.stdin.on("end", () => {
+                const rows = JSON.parse(input);
+                const match = rows.find(row => row.name === process.env.D1_NAME);
+                process.stdout.write(match?.uuid || match?.id || "");
+              });
+            '
+          }
+
+          DB_ID="$(find_db_id)"
+          if [ -z "$DB_ID" ]; then
+            npx wrangler d1 create "$D1_NAME" --location apac
+            DB_ID="$(find_db_id)"
+          fi
+
+          test -n "$DB_ID"
+          echo "database_id=$DB_ID" >> "$GITHUB_OUTPUT"
+
+          cat > wrangler.jsonc <<JSON
+          {
+            "name": "$WORKER_NAME",
+            "main": "src/index.js",
+            "compatibility_date": "2026-09-03",
+            "workers_dev": true,
+            "vars": {
+              "ALLOWED_ORIGIN": "https://v0v0.github.io"
+            },
+            "d1_databases": [
+              {
+                "binding": "DB",
+                "database_name": "$D1_NAME",
+                "database_id": "$DB_ID"
+              }
+            ],
+            "ratelimits": [
+              {
+                "name": "VISIT_RATE_LIMITER",
+                "namespace_id": "71452001",
+                "simple": { "limit": 30, "period": 60 }
+              },
+              {
+                "name": "EVENT_RATE_LIMITER",
+                "namespace_id": "71452002",
+                "simple": { "limit": 120, "period": 60 }
+              }
+            ]
+          }
+          JSON
+
+      - name: Initialize D1 schema
+        working-directory: analytics-worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          npx wrangler d1 execute "$D1_NAME" --remote --file=./schema.sql --yes --config wrangler.jsonc
+
+      - name: Deploy Worker with secrets
+        working-directory: analytics-worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          UV_HASH_KEY: ${{ secrets.UV_HASH_KEY }}
+          STATS_TOKEN: ${{ secrets.STATS_TOKEN }}
+        run: |
+          set -euo pipefail
+          SECRETS_FILE="$(mktemp)"
+          trap 'rm -f "$SECRETS_FILE"' EXIT
+
+          node - <<'NODE' > "$SECRETS_FILE"
+          const secrets = {
+            UV_HASH_KEY: process.env.UV_HASH_KEY,
+            STATS_TOKEN: process.env.STATS_TOKEN,
+          };
+          process.stdout.write(JSON.stringify(secrets));
+          NODE
+
+          npx wrangler deploy --config wrangler.jsonc --secrets-file "$SECRETS_FILE"
+
+      - name: Resolve and verify Worker URL
+        id: worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          RESPONSE="$(curl --fail --silent --show-error \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")"
+
+          SUBDOMAIN="$(printf '%s' "$RESPONSE" | node -e '
+            let input = "";
+            process.stdin.on("data", chunk => input += chunk);
+            process.stdin.on("end", () => {
+              const payload = JSON.parse(input);
+              if (!payload.success || !payload.result?.subdomain) process.exit(1);
+              process.stdout.write(payload.result.subdomain);
+            });
+          ')"
+
+          ENDPOINT="https://$WORKER_NAME.$SUBDOMAIN.workers.dev"
+          curl --fail --silent --show-error "$ENDPOINT/v1/health" > /dev/null
+          echo "endpoint=$ENDPOINT" >> "$GITHUB_OUTPUT"
+          echo "Worker deployed and health check passed."
+
+      - name: Enable analytics in site configuration
+        env:
+          ANALYTICS_ENDPOINT: ${{ steps.worker.outputs.endpoint }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          endpoint = os.environ['ANALYTICS_ENDPOINT'].rstrip('/')
+          config = {
+              'enabled': True,
+              'endpoint': endpoint,
+              'note': 'Cloudflare Worker analytics endpoint. Public by design; credentials remain in GitHub/Cloudflare secrets.'
+          }
+          Path('data/analytics-config.json').write_text(
+              json.dumps(config, ensure_ascii=False, indent=2) + '\n',
+              encoding='utf-8'
+          )
+          PY
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/analytics-config.json
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: enable Cloudflare analytics endpoint"
+            git push origin HEAD:main
+          fi
