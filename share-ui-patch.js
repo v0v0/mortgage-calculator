@@ -57,7 +57,8 @@
     if (installed) return true;
     const actions = document.querySelector('.share-panel-actions');
     const field = $('shareUrlValue');
-    if (!actions || !field) return false;
+    const status = $('sharePanelStatus');
+    if (!actions || !field || !status) return false;
 
     installed = true;
     actions.replaceChildren();
@@ -68,6 +69,9 @@
     button.className = 'primary share-copy-and-share';
     button.textContent = '复制并分享';
     actions.appendChild(button);
+
+    const label = field.closest('.share-url-label');
+    if (label) label.insertAdjacentElement('afterend', actions);
 
     button.addEventListener('click', async () => {
       const url = field.value || '';
