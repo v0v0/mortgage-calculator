@@ -1,5 +1,5 @@
 {
-  "enabled": false,
-  "endpoint": "",
-  "note": "运行 Deploy Cloudflare Analytics workflow 后会自动写入公开 Worker HTTPS endpoint 并启用统计；任何 Token/Secret 都不会写入此文件。"
+  "enabled": true,
+  "endpoint": "https://mortgage-calculator-analytics.v0v0.workers.dev",
+  "note": "Cloudflare Worker analytics endpoint. Public by design; credentials remain in GitHub/Cloudflare secrets."
 }
