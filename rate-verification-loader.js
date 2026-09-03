@@ -10,6 +10,21 @@
     luoyang: '洛阳'
   };
 
+  if (location.hash.startsWith('#s=')) {
+    window.__mortgageSharePayload = location.hash.slice(3);
+    history.replaceState(null, '', location.pathname + location.search);
+  }
+
+  function loadShareState() {
+    if (document.querySelector('script[data-mortgage-share-state]')) return;
+    const script = document.createElement('script');
+    script.src = './share-state.js';
+    script.dataset.mortgageShareState = '1';
+    document.body.appendChild(script);
+  }
+
+  window.addEventListener('load', loadShareState, { once: true });
+
   function isRateRequest(input) {
     const url = typeof input === 'string' ? input : (input && input.url) || '';
     return url.replace(/^\.\//, '').endsWith(RATE_PATH);
