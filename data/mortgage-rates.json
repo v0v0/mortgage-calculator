@@ -1,0 +1,39 @@
+{
+  "asOf": "2026-09-03",
+  "note": "商业贷款利率为公开信息整理后的市场参考值，实际执行利率以贷款银行审批为准；公积金利率按当前全国通行基准，个别城市特殊政策以当地公积金中心为准。",
+  "lpr": {
+    "oneYear": 3.0,
+    "fiveYearPlus": 3.5,
+    "publishedAt": "2026-08-20",
+    "source": "全国银行间同业拆借中心",
+    "sourceUrl": "https://www.chinamoney.com.cn/chinese/rdgz/20260820/3399885.html"
+  },
+  "providentFundDefault": {
+    "firstHome": { "upTo5Years": 2.1, "over5Years": 2.6 },
+    "secondHome": { "upTo5Years": 2.525, "over5Years": 3.075 },
+    "source": "现行个人住房公积金贷款利率",
+    "sourceUrl": "https://www.lyg.gov.cn/zglygzfmhwz/zffw1/content/a6343ae6-94d8-4603-be11-25a3249c8143.shtml"
+  },
+  "cities": [
+    { "id": "beijing", "name": "北京", "tier": "一线", "commercial": { "benchmark": "LPR5Y", "spreadBP": -45, "rate": 3.05, "source": "2026年8月公开市场主流执行水平", "sourceUrl": "https://finance.eastmoney.com/a/202608133840727764.html" } },
+    { "id": "shanghai", "name": "上海", "tier": "一线", "commercial": { "benchmark": "LPR5Y", "spreadBP": -45, "rate": 3.05, "source": "2026年8月公开市场参考", "sourceUrl": "https://sh.focus.cn/zixun/4e0f932bf15e741b.html" } },
+    { "id": "guangzhou", "name": "广州", "tier": "一线", "commercial": { "benchmark": "LPR5Y", "spreadBP": -50, "rate": 3.0, "source": "2026年8月主流参考水平；部分外资行可能更低", "sourceUrl": "https://finance.eastmoney.com/a/202608133840727764.html" } },
+    { "id": "shenzhen", "name": "深圳", "tier": "一线", "commercial": { "benchmark": "LPR5Y", "spreadBP": -45, "rate": 3.05, "source": "2026年8月公开市场执行水平", "sourceUrl": "https://m.fang.com/news/sz/12188_55025256.html" } },
+    { "id": "hangzhou", "name": "杭州", "tier": "二线", "commercial": { "benchmark": "LPR5Y", "spreadBP": -45, "rate": 3.05, "source": "主要银行市场参考值", "sourceUrl": "https://www.urcb.com/urcb/wzfw/dkll/index.shtml" } },
+    { "id": "nanjing", "name": "南京", "tier": "二线", "commercial": { "benchmark": "LPR5Y", "spreadBP": -45, "rate": 3.05, "source": "主要银行市场参考值", "sourceUrl": "https://www.chafangdai.com/nanjing/" } },
+    { "id": "chengdu", "name": "成都", "tier": "二线", "commercial": { "benchmark": "LPR5Y", "spreadBP": -50, "rate": 3.0, "source": "2026年8月公开市场主流参考", "sourceUrl": "https://www.zuoliweilai.com/knowledge-chengdu-mortgage-rates.html" } },
+    { "id": "chongqing", "name": "重庆", "tier": "二线", "commercial": { "benchmark": "LPR5Y", "spreadBP": -35, "rate": 3.15, "source": "2026年8月市场常见水平", "sourceUrl": "https://tstools.org/mortgage-rates/" } },
+    { "id": "tianjin", "name": "天津", "tier": "二线", "commercial": { "benchmark": "LPR5Y", "spreadBP": -40, "rate": 3.1, "source": "2026年8月市场常见水平", "sourceUrl": "https://tstools.org/mortgage-rates/" } },
+    { "id": "wuhan", "name": "武汉", "tier": "二线", "commercial": { "benchmark": "LPR5Y", "spreadBP": -45, "rate": 3.05, "source": "主要银行市场参考值", "sourceUrl": "https://www.wuhan.gov.cn/zwgk/tzgg/202605/t20260501_2759971.shtml" } },
+    { "id": "xian", "name": "西安", "tier": "二线", "commercial": { "benchmark": "LPR5Y", "spreadBP": -45, "rate": 3.05, "source": "主要银行市场参考值", "sourceUrl": "" } },
+    { "id": "suzhou", "name": "苏州", "tier": "二线", "commercial": { "benchmark": "LPR5Y", "spreadBP": -45, "rate": 3.05, "source": "主要银行市场参考值", "sourceUrl": "" } },
+    { "id": "ningbo", "name": "宁波", "tier": "二线", "commercial": { "benchmark": "LPR5Y", "spreadBP": -45, "rate": 3.05, "source": "主要银行市场参考值", "sourceUrl": "" } },
+    { "id": "qingdao", "name": "青岛", "tier": "二线", "commercial": { "benchmark": "LPR5Y", "spreadBP": -45, "rate": 3.05, "source": "主要银行市场参考值", "sourceUrl": "" } },
+    { "id": "changsha", "name": "长沙", "tier": "二线", "commercial": { "benchmark": "LPR5Y", "spreadBP": -45, "rate": 3.05, "source": "主要银行市场参考值", "sourceUrl": "" } },
+    { "id": "zhengzhou", "name": "郑州", "tier": "二线", "commercial": { "benchmark": "LPR5Y", "spreadBP": -45, "rate": 3.05, "source": "主要银行市场参考值", "sourceUrl": "" } },
+    { "id": "hefei", "name": "合肥", "tier": "二线", "commercial": { "benchmark": "LPR5Y", "spreadBP": -45, "rate": 3.05, "source": "主要银行市场参考值", "sourceUrl": "" } },
+    { "id": "jinan", "name": "济南", "tier": "二线", "commercial": { "benchmark": "LPR5Y", "spreadBP": -45, "rate": 3.05, "source": "主要银行市场参考值", "sourceUrl": "https://www.jinan.gov.cn/col/col118356/art/2026/art_7710da9e8b1d47be98695f422465bb02.html" } },
+    { "id": "fuzhou", "name": "福州", "tier": "二线", "commercial": { "benchmark": "LPR5Y", "spreadBP": -45, "rate": 3.05, "source": "主要银行市场参考值", "sourceUrl": "https://zfgjj.fuzhou.gov.cn/zwgk/gzdt/zyxw/202601/t20260115_5271484.htm" } },
+    { "id": "xiamen", "name": "厦门", "tier": "二线", "commercial": { "benchmark": "LPR5Y", "spreadBP": -45, "rate": 3.05, "source": "主要银行市场参考值", "sourceUrl": "" } }
+  ]
+}
