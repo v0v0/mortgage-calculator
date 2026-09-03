@@ -15,3 +15,7 @@
 .rate-grid:has(#commercialRatePanel.hidden),.rate-grid:has(#providentRatePanel.hidden){grid-template-columns:minmax(0,min(720px,100%))!important;justify-content:start}
 @media(max-width:1440px){.page{width:100%!important;max-width:none!important;margin:0!important}.comparison-card-wrap .comparison{gap:12px!important}.commercial-rate,.provident-rate{grid-template-columns:minmax(0,1fr) minmax(145px,180px)}}
 @media(max-width:820px){.commercial-rate,.provident-rate{display:block}.commercial-rate .inline-rate,.provident-rate .inline-rate{max-width:220px}.rate-grid:has(#commercialRatePanel.hidden),.rate-grid:has(#providentRatePanel.hidden){grid-template-columns:1fr!important}.comparison-card-wrap .comparison{grid-template-columns:1fr!important}}
+
+/* desktop remains centered at <=70%; only compact screens expand to full width */
+@media(min-width:1101px) and (max-width:1440px){.page{width:70vw!important;max-width:70vw!important;margin:0 auto!important}}
+@media(max-width:1100px){.page{width:100%!important;max-width:none!important;margin:0!important}}
