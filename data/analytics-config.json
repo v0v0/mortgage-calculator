@@ -1,0 +1,5 @@
+{
+  "enabled": false,
+  "endpoint": "",
+  "note": "部署 analytics-worker 后，将 endpoint 设置为 Worker HTTPS 地址并将 enabled 改为 true。前端不上传原始 IP，IP 地域由 Worker 的 Cloudflare request.cf 推导。"
+}
