@@ -4,6 +4,7 @@
   const $ = id => document.getElementById(id);
   let shareInstalled = false;
   let saveInstalled = false;
+  let titleInstalled = false;
 
   const enumIndex = (value, values) => Math.max(0, values.indexOf(value));
   const numberValue = value => {
@@ -88,13 +89,44 @@
     return `房贷计算-${city}${amount}万-${methodLabel}`;
   }
 
-  function copyText(text) {
-    if (navigator.clipboard?.writeText) {
-      try {
-        return navigator.clipboard.writeText(text).then(() => true).catch(() => legacyCopy(text));
-      } catch (_) {}
+  function updatePageTitle() {
+    const title = buildShareTitle();
+    document.title = title;
+    let ogTitle = document.querySelector('meta[property="og:title"]');
+    if (!ogTitle) {
+      ogTitle = document.createElement('meta');
+      ogTitle.setAttribute('property', 'og:title');
+      document.head.appendChild(ogTitle);
     }
-    return Promise.resolve(legacyCopy(text));
+    ogTitle.setAttribute('content', title);
+    return title;
+  }
+
+  function installLiveTitle() {
+    if (titleInstalled) return true;
+    titleInstalled = true;
+    let queued = false;
+    const queue = () => {
+      if (queued) return;
+      queued = true;
+      queueMicrotask(() => {
+        queued = false;
+        updatePageTitle();
+      });
+    };
+    document.addEventListener('input', queue, true);
+    document.addEventListener('change', queue, true);
+    document.addEventListener('click', queue, false);
+    window.addEventListener('load', queue, { once: true });
+    setTimeout(queue, 50);
+    setTimeout(queue, 400);
+    setTimeout(queue, 1200);
+    return true;
+  }
+
+  function isIosChrome() {
+    const ua = navigator.userAgent || '';
+    return /(?:iPhone|iPad|iPod)/i.test(ua) && /CriOS/i.test(ua);
   }
 
   function legacyCopy(text) {
@@ -118,6 +150,15 @@
     }
   }
 
+  function copyText(text) {
+    if (navigator.clipboard?.writeText) {
+      try {
+        return navigator.clipboard.writeText(text).then(() => true).catch(() => legacyCopy(text));
+      } catch (_) {}
+    }
+    return Promise.resolve(legacyCopy(text));
+  }
+
   function setShareStatus(text) {
     const status = $('sharePanelStatus');
     if (status) status.textContent = text;
@@ -131,63 +172,88 @@
     document.body.classList.add('share-panel-open');
   }
 
-  function applyShareMetadata(title) {
-    const previousTitle = document.title;
-    let ogTitle = document.querySelector('meta[property="og:title"]');
-    const createdOg = !ogTitle;
-    const previousOg = ogTitle?.getAttribute('content') || '';
-    if (!ogTitle) {
-      ogTitle = document.createElement('meta');
-      ogTitle.setAttribute('property', 'og:title');
-      document.head.appendChild(ogTitle);
-    }
-    document.title = title;
-    ogTitle.setAttribute('content', title);
-    return () => {
-      document.title = previousTitle;
-      if (createdOg) ogTitle.remove();
-      else ogTitle.setAttribute('content', previousOg);
-    };
-  }
-
   function triggerSystemShareImmediately(url, title) {
     if (!navigator.share) return null;
-    const restoreMetadata = applyShareMetadata(title);
+    updatePageTitle();
     try {
       const promise = navigator.share({ title, text: title, url });
-      Promise.resolve(promise)
-        .catch(error => {
-          if (error?.name !== 'AbortError') console.warn('系统分享未能打开', error);
-        })
-        .finally(restoreMetadata);
+      Promise.resolve(promise).catch(error => {
+        if (error?.name !== 'AbortError') console.warn('系统分享未能打开', error);
+      });
       return promise;
     } catch (error) {
-      restoreMetadata();
       if (error?.name !== 'AbortError') console.warn('系统分享未能打开', error);
       return null;
     }
   }
 
-  function shareNow() {
-    let url;
+  function buildSharePayload() {
+    const url = makeShareUrlSync();
+    const title = updatePageTitle();
+    return { url, title };
+  }
+
+  function shareFromFloatingButton() {
+    let payload;
     try {
-      url = makeShareUrlSync();
+      payload = buildSharePayload();
     } catch (error) {
       console.error(error);
       setShareStatus('生成分享链接失败，请重试');
       return;
     }
 
-    const title = buildShareTitle();
-    openSharePanel(url);
+    openSharePanel(payload.url);
     setShareStatus('已复制');
-
-    // navigator.share() must run in the same user-activation task. Do not wait for
-    // compression, clipboard promises or timers before invoking it.
-    triggerSystemShareImmediately(url, title);
-
-    copyText(url).then(copied => {
+    copyText(payload.url).then(copied => {
       setShareStatus(copied ? '已复制' : '复制失败，可长按链接复制');
+    });
+
+    // iOS Chrome can reject navigator.share() when the same click also opens our
+    // custom share UI. Keep the panel/copy behavior there and let the explicit
+    // panel button perform the system share. Safari and other browsers retain
+    // immediate system sharing.
+    if (!isIosChrome()) triggerSystemShareImmediately(payload.url, payload.title);
+  }
+
+  function shareFromPanelButton() {
+    let payload;
+    try {
+      payload = buildSharePayload();
+    } catch (error) {
+      console.error(error);
+      setShareStatus('生成分享链接失败，请重试');
+      return;
+    }
+
+    openSharePanel(payload.url);
+    setShareStatus('已复制');
+    triggerSystemShareImmediately(payload.url, payload.title);
+    copyText(payload.url).then(copied => {
+      setShareStatus(copied ? '已复制' : '复制失败，可长按链接复制');
+    });
+  }
+
+  function setSaveShareStatus(text) {
+    const status = $('saveShareStatus');
+    if (status) status.textContent = text;
+  }
+
+  function shareDirectlyFromSaveDialog() {
+    let payload;
+    try {
+      payload = buildSharePayload();
+    } catch (error) {
+      console.error(error);
+      setSaveShareStatus('生成专属链接失败，请重试');
+      return;
+    }
+
+    // This button click is itself a fresh user activation, so share immediately
+    // without closing the save dialog or opening the separate share panel.
+    triggerSystemShareImmediately(payload.url, payload.title);
+    copyText(payload.url).then(copied => {
+      setSaveShareStatus(copied ? '专属链接已复制' : '复制失败，请重试');
     });
   }
 
@@ -197,27 +263,31 @@
     style.id = 'share-save-ui-style';
     style.textContent = `
       .share-panel-actions .share-copy-and-share{width:100%;min-height:44px;font-size:14px;font-weight:800}
-      .save-dialog .save-dialog-heading{display:flex;align-items:center;gap:12px;margin:0 0 14px}
-      .save-dialog .save-dialog-heading .dialog-icon{flex:0 0 42px;margin:0}
-      .save-dialog .save-dialog-heading h3{margin:0;font-size:20px;line-height:1.25;color:#172033}
-      .save-dialog .save-persistence-box{margin:0 0 16px;padding:14px;border:1px solid #efcf98;border-radius:14px;background:linear-gradient(145deg,#fff9ed,#f5f9ff)}
-      .save-dialog .save-persistence-title{display:flex;align-items:center;gap:8px;color:#173f70;font-size:15px;font-weight:900;line-height:1.35}
-      .save-dialog .save-persistence-title svg{width:19px;height:19px;fill:none;stroke:#2563eb;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
-      .save-dialog .save-persistence-box>p{margin:8px 0 0!important;color:#4d6179!important;font-size:13px!important;line-height:1.65;font-weight:600}
-      .save-dialog .save-persistence-box>p strong{color:#b45309;font-weight:900}
-      .save-dialog .save-persistent-option{margin-top:12px;padding-top:12px;border-top:1px dashed #d6c59f}
-      .save-dialog .save-persistent-option strong{display:block;margin-bottom:4px;color:#174f91;font-size:14px;line-height:1.4}
-      .save-dialog .save-persistent-option span{display:block;color:#4f657e;font-size:13px;line-height:1.6;font-weight:600}
-      .save-dialog .save-persistent-option button{width:100%;margin-top:10px;min-height:44px;border:1px solid #8db9ee;border-radius:11px;background:linear-gradient(135deg,#edf5ff,#e8f7f3);color:#1257a6;font-size:14px;font-weight:900;cursor:pointer}
-      .save-dialog .save-persistent-option button:hover{background:#e5f1ff}
-      .save-dialog .save-local-intro{margin:0 0 10px!important;color:#405a78!important;font-size:13px!important;line-height:1.5;font-weight:800}
+      .save-dialog .save-dialog-heading{display:flex!important;align-items:center!important;gap:12px;margin:0 0 16px!important}
+      .save-dialog .save-dialog-heading .dialog-icon{display:grid!important;place-items:center!important;width:40px!important;height:40px!important;flex:0 0 40px!important;margin:0!important;border-radius:12px}
+      .save-dialog .save-dialog-heading h3{margin:0!important;padding:0!important;font-size:21px!important;line-height:1.2!important;color:#172033}
+      .save-dialog .save-persistence-box{margin:0 0 16px;padding:15px;border:1px solid #e7bd72;border-radius:14px;background:linear-gradient(145deg,#fff8e8,#f1f7ff)}
+      .save-dialog .save-persistence-title{display:flex;align-items:center;gap:9px;color:#123d70;font-size:16px;font-weight:900;line-height:1.35}
+      .save-dialog .save-persistence-title svg{width:20px;height:20px;fill:none;stroke:#2563eb;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+      .save-dialog .save-persistence-box>p{margin:9px 0 0!important;color:#3f536c!important;font-size:14px!important;line-height:1.65!important;font-weight:650!important}
+      .save-dialog .save-persistence-box>p strong{color:#a84d08;font-weight:900}
+      .save-dialog .save-persistent-option{margin-top:13px;padding-top:13px;border-top:1px dashed #d4bd91}
+      .save-dialog .save-persistent-option strong{display:block;margin-bottom:5px;color:#0f4e92;font-size:15px;line-height:1.4;font-weight:900}
+      .save-dialog .save-persistent-option span{display:block;color:#425d79;font-size:13.5px;line-height:1.65;font-weight:650}
+      .save-dialog .save-persistent-option button{width:100%;margin-top:11px;min-height:46px;border:1px solid #78aae5;border-radius:11px;background:linear-gradient(135deg,#eaf3ff,#e5f7f1);color:#0f56a5;font-size:14px;font-weight:900;cursor:pointer}
+      .save-dialog .save-persistent-option button:hover{background:#e2efff}
+      .save-dialog .save-share-status{min-height:18px;margin:7px 0 0!important;color:#08795b!important;font-size:12px!important;line-height:1.4;font-weight:800}
+      .save-dialog .save-local-intro{margin:0 0 10px!important;color:#344f6f!important;font-size:13.5px!important;line-height:1.5!important;font-weight:850!important}
       @media(max-width:720px){
-        .save-dialog .save-dialog-heading{gap:10px;margin-bottom:12px}
-        .save-dialog .save-dialog-heading h3{font-size:19px}
-        .save-dialog .save-persistence-box{padding:12px;margin-bottom:14px}
-        .save-dialog .save-persistence-title{font-size:14px}
-        .save-dialog .save-persistence-box>p,.save-dialog .save-persistent-option span{font-size:12.5px}
-        .save-dialog .save-persistent-option button{min-height:44px;font-size:14px}
+        .save-dialog .save-dialog-heading{gap:10px;margin-bottom:13px!important}
+        .save-dialog .save-dialog-heading .dialog-icon{width:36px!important;height:36px!important;flex-basis:36px!important}
+        .save-dialog .save-dialog-heading h3{font-size:20px!important}
+        .save-dialog .save-persistence-box{padding:13px;margin-bottom:14px}
+        .save-dialog .save-persistence-title{font-size:15px}
+        .save-dialog .save-persistence-box>p{font-size:13px!important}
+        .save-dialog .save-persistent-option strong{font-size:14px}
+        .save-dialog .save-persistent-option span{font-size:12.75px}
+        .save-dialog .save-persistent-option button{min-height:45px;font-size:14px}
       }
     `;
     document.head.appendChild(style);
@@ -236,7 +306,7 @@
     floatShare.addEventListener('click', event => {
       event.preventDefault();
       event.stopImmediatePropagation();
-      shareNow();
+      shareFromFloatingButton();
     }, true);
 
     actions.replaceChildren();
@@ -252,10 +322,10 @@
 
     button.addEventListener('click', event => {
       event.preventDefault();
-      shareNow();
+      shareFromPanelButton();
     });
 
-    window.__mortgageShareNow = shareNow;
+    window.__mortgageShareNow = shareFromPanelButton;
     return true;
   }
 
@@ -284,16 +354,17 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v14H5zM8 5v5h8V5M8 19v-6h8v6"/></svg>
         <span>本地保存：仅当前浏览器可用</span>
       </div>
-      <p>方案只保存在这个浏览器中，不会自动同步到其他设备。更换设备、使用无痕模式或清理浏览器数据后，<strong>本地方案可能丢失</strong>。</p>
+      <p>方案只保存在这个浏览器中，<strong>不会自动同步</strong>到其他设备。更换设备、使用无痕模式或清理浏览器数据后，<strong>本地方案可能丢失</strong>。</p>
       <div class="save-persistent-option">
-        <strong>建议重要方案使用专属链接长期保存</strong>
+        <strong>重要方案建议同时保存专属链接</strong>
         <span>专属链接包含当前完整房贷方案，可以收藏、发送给自己或跨设备打开并自动恢复。</span>
         <button id="saveDialogShare" type="button">生成并分享专属链接</button>
+        <p id="saveShareStatus" class="save-share-status" role="status" aria-live="polite"></p>
       </div>`;
     form.querySelector('.save-dialog-heading').insertAdjacentElement('afterend', guide);
 
     if (existingIntro?.tagName === 'P') {
-      existingIntro.textContent = '也可以给当前浏览器中的本地方案命名：';
+      existingIntro.textContent = '本地保存方案名称：';
       existingIntro.classList.add('save-local-intro');
       guide.insertAdjacentElement('afterend', existingIntro);
     }
@@ -301,9 +372,7 @@
     $('saveDialogShare')?.addEventListener('click', event => {
       event.preventDefault();
       event.stopPropagation();
-      if (dialog.open) dialog.close('cancel');
-      // Keep the original button click's user activation; do not defer with rAF/timer.
-      shareNow();
+      shareDirectlyFromSaveDialog();
     });
 
     return true;
@@ -311,6 +380,7 @@
 
   function installAll() {
     installStyles();
+    installLiveTitle();
     const shareReady = installShareUi();
     const saveReady = installSavePersistenceGuide();
     return shareReady && saveReady;
