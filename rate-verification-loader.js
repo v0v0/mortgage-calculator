@@ -2,16 +2,47 @@
   const nativeFetch = window.fetch.bind(window);
   const RATE_PATH = 'data/mortgage-rates.json';
   const VERIFY_PATH = './data/rate-verification-2026-09-03.json';
+  const CITY_NAMES = {
+    guiyang: '贵阳',
+    taiyuan: '太原',
+    baoding: '保定',
+    zhuhai: '珠海',
+    luoyang: '洛阳'
+  };
 
   function isRateRequest(input) {
     const url = typeof input === 'string' ? input : (input && input.url) || '';
     return url.replace(/^\.\//, '').endsWith(RATE_PATH);
   }
 
+  function applyCityScope(base, verification) {
+    const tiers = verification.cityScope && verification.cityScope.tiers;
+    if (!tiers) return;
+
+    const existing = new Map((base.cities || []).map(city => [city.id, city]));
+    const ordered = [];
+
+    for (const [tier, cityIds] of Object.entries(tiers)) {
+      for (const id of cityIds) {
+        const city = existing.get(id) || { id, name: CITY_NAMES[id] || id };
+        city.tier = tier;
+        ordered.push(city);
+      }
+    }
+
+    base.cities = ordered;
+    base.cityListBasis = {
+      name: verification.cityScope.basis,
+      source: '第一财经·新一线城市研究所 2025 城市分级',
+      sourceUrl: verification.cityScope.sourceUrl
+    };
+  }
+
   function mergeVerification(base, verification) {
     if (!base || !verification) return base;
 
     base.asOf = verification.asOf || base.asOf;
+    applyCityScope(base, verification);
 
     if (Array.isArray(verification.lpr)) {
       base.lpr = base.lpr || {};
@@ -66,7 +97,8 @@
     base.verification = {
       asOf: verification.asOf,
       note: verification.note,
-      legend: verification.legend
+      legend: verification.legend,
+      cityScope: verification.cityScope
     };
 
     return base;
