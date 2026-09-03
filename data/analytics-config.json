@@ -1,5 +1,5 @@
 {
   "enabled": true,
   "endpoint": "https://mortgage-calculator-analytics.v0v0.workers.dev",
-  "note": "Cloudflare Worker analytics endpoint. Public by design; credentials remain in GitHub/Cloudflare secrets."
+  "note": "Cloudflare Worker analytics endpoint. Public by design; credentials remain in GitHub/Cloudflare secrets. Analytics is enabled."
 }
