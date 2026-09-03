@@ -69,6 +69,16 @@
       .compare-title .current-choice-badge{font-size:9px!important;padding:4px 6px!important;white-space:nowrap;flex:0 0 auto}
       .principal-decrease-note{margin:-1px 0 5px;font-size:10px;color:#64748b;font-weight:650;line-height:1.4}
       .principal-decrease-note b{color:#087257;font-variant-numeric:tabular-nums}
+      .split-interest.split-loan-breakdown{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px!important;margin-top:9px!important}
+      .split-interest.split-loan-breakdown .split-loan-box{display:block!important;padding:8px 9px!important;border-radius:9px!important;border:1px solid #dbe7f5;background:#f8fbff;color:#52657d}
+      .split-interest.split-loan-breakdown .split-loan-box.commercial{background:#fff8ef;border-color:#f6dfbf}
+      .split-interest.split-loan-breakdown .split-loan-box.provident{background:#f0fbf6;border-color:#cfeede}
+      .split-loan-name{display:block;font-size:10px;font-weight:800;margin-bottom:5px;color:#40546d}
+      .split-loan-box.commercial .split-loan-name{color:#a65a13}
+      .split-loan-box.provident .split-loan-name{color:#087257}
+      .split-loan-values{display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:9px;line-height:1.35}
+      .split-loan-values span{display:block!important;background:transparent!important;padding:0!important;border-radius:0!important;color:#718096!important;white-space:normal}
+      .split-loan-values b{display:block;margin-top:1px;color:#263b56;font-size:10px;font-variant-numeric:tabular-nums}
       @media(max-width:720px){
         .comparison-card-wrap{padding-top:10px!important}
         .compare-title{align-items:flex-start!important}
@@ -76,6 +86,11 @@
         .compare-title .principal-cross-note{font-size:9px;padding:3px 5px;white-space:normal;text-align:right}
         .compare-title .current-choice-badge{font-size:8px!important;padding:3px 5px!important}
         .principal-decrease-note{font-size:9px;margin-top:-2px}
+        .split-interest.split-loan-breakdown{gap:5px!important}
+        .split-interest.split-loan-breakdown .split-loan-box{padding:7px!important}
+        .split-loan-name{font-size:9px}
+        .split-loan-values{grid-template-columns:1fr;gap:3px;font-size:8px}
+        .split-loan-values b{font-size:9px;display:inline;margin-left:3px}
       }
     `;
     document.head.appendChild(style);
@@ -153,6 +168,48 @@
     }).format(amount);
   }
 
+  function formatWan(value) {
+    const amount = Math.max(0, Number(value || 0));
+    return `${new Intl.NumberFormat('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount / 10000)} 万`;
+  }
+
+  function summarizeLoan(rows) {
+    return {
+      principal: (rows || []).reduce((sum, row) => sum + Number(row?.principal || 0), 0),
+      interest: (rows || []).reduce((sum, row) => sum + Number(row?.interest || 0), 0)
+    };
+  }
+
+  function decorateCombinedLoanBreakdown(comparison, sets) {
+    const loanType = document.querySelector('#loanTypeTabs button.active')?.dataset.value || 'combined';
+    if (loanType !== 'combined') return;
+
+    comparison.querySelectorAll('.compare-card[data-method]').forEach(card => {
+      const method = card.dataset.method;
+      const set = sets?.[method];
+      const split = card.querySelector('.split-interest');
+      if (!set || !split) return;
+
+      const commercial = summarizeLoan(set.commercial);
+      const provident = summarizeLoan(set.provident);
+      const signature = [commercial.principal, commercial.interest, provident.principal, provident.interest]
+        .map(value => Math.round(value * 100) / 100).join('|');
+      if (split.dataset.breakdownSignature === signature) return;
+
+      split.classList.add('split-loan-breakdown');
+      split.dataset.breakdownSignature = signature;
+      split.innerHTML = `
+        <div class="split-loan-box commercial">
+          <strong class="split-loan-name">商业贷款</strong>
+          <div class="split-loan-values"><span>本金<b>${formatWan(commercial.principal)}</b></span><span>利息<b>${formatWan(commercial.interest)}</b></span></div>
+        </div>
+        <div class="split-loan-box provident">
+          <strong class="split-loan-name">公积金贷款</strong>
+          <div class="split-loan-values"><span>本金<b>${formatWan(provident.principal)}</b></span><span>利息<b>${formatWan(provident.interest)}</b></span></div>
+        </div>`;
+    });
+  }
+
   function decorateComparison() {
     installComparisonStyles();
     const comparison = document.getElementById('comparison');
@@ -175,6 +232,8 @@
         right.appendChild(badge);
       }
     });
+
+    decorateCombinedLoanBreakdown(comparison, sets);
 
     const principalCard = comparison.querySelector('.compare-card[data-method="equalPrincipal"]');
     const principalTitle = principalCard?.querySelector('.compare-title');
