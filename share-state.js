@@ -26,6 +26,14 @@
 
     const nav = document.querySelector('.floating-tools');
     if (nav) {
+      const legacyExport = $('floatPdf');
+      if (legacyExport && legacyExport.parentNode === nav) {
+        legacyExport.hidden = true;
+        legacyExport.setAttribute('aria-hidden', 'true');
+        legacyExport.style.display = 'none';
+        document.body.appendChild(legacyExport);
+      }
+
       nav.innerHTML = `
         <button id="floatTop" type="button" title="回到顶部" aria-label="回到顶部">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>
@@ -35,6 +43,9 @@
         </button>
         <button id="floatDetail" type="button" title="查看还款明细" aria-label="查看还款明细">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14M5 12h14M5 18h14M8 4v16M16 4v16"/></svg>
+        </button>
+        <button id="floatImage" type="button" title="保存房贷结果长图" aria-label="保存房贷结果长图">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/><circle cx="9" cy="9" r="1.5"/><path d="M5 17l4.5-4.5 3.2 3.2 2-2L19 18"/></svg>
         </button>
         <button id="floatShare" type="button" title="分享当前方案链接" aria-label="分享当前方案链接">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8l7.6-4.5M8.2 13.2l7.6 4.5"/></svg>
@@ -267,6 +278,7 @@
     $('floatTop')?.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
     $('floatCompare')?.addEventListener('click', () => document.querySelector('.comparison-card-wrap')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
     $('floatDetail')?.addEventListener('click', () => document.querySelector('.detail-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    $('floatImage')?.addEventListener('click', () => $('floatPdf')?.click());
     $('floatShare')?.addEventListener('click', shareCurrentPlan);
     $('floatSave')?.addEventListener('click', () => $('savePlan')?.click());
   }
