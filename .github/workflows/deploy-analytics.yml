@@ -2,6 +2,12 @@ name: Deploy Cloudflare Analytics
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'analytics-worker/**'
+      - '.github/workflows/deploy-analytics.yml'
 
 permissions:
   contents: write
@@ -187,6 +193,17 @@ jobs:
 
           echo "endpoint=$ENDPOINT" >> "$GITHUB_OUTPUT"
           echo "Worker deployed and health check passed."
+
+      - name: Verify stats API and D1 binding
+        env:
+          ANALYTICS_ENDPOINT: ${{ steps.worker.outputs.endpoint }}
+          STATS_TOKEN: ${{ secrets.STATS_TOKEN }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer $STATS_TOKEN" \
+            "$ANALYTICS_ENDPOINT/v1/stats" > /dev/null
+          echo "Stats API and D1 binding verified."
 
       - name: Enable analytics in site configuration
         env:
