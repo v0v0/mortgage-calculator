@@ -11,18 +11,14 @@
 </head>
 <body>
   <main class="page">
-    <header class="hero">
-      <div class="hero-copy">
-        <p class="eyebrow">MORTGAGE CALCULATOR</p>
-        <h1>房贷利率计算器</h1>
-        <p class="subtitle">城市参考利率 · 商贷 / 公积金 / 组合贷 · 等额本息 / 等额本金 · 全周期明细</p>
-      </div>
-      <div class="data-badge" id="dataBadge">利率数据加载中…</div>
+    <header class="hero compact-hero">
+      <h1>房贷利率计算器</h1>
+      <div class="data-badge" id="dataBadge">利率更新日期加载中…</div>
     </header>
 
     <section class="card form-card accent-card">
       <div class="section-title compact-title">
-        <div><p class="section-kicker">STEP 01</p><h2>贷款参数</h2></div>
+        <h2>贷款参数</h2>
         <button class="ghost" id="resetBtn">恢复默认</button>
       </div>
 
@@ -40,21 +36,12 @@
         <span>贷款比例 <b id="loanRatioSummary">-</b></span>
       </div>
 
-      <div class="config-row">
-        <div>
-          <div class="field-title">贷款方式</div>
-          <div class="segmented" id="loanTypeTabs">
-            <button data-value="commercial">商业贷款</button>
-            <button data-value="provident">公积金贷款</button>
-            <button data-value="combined" class="active">组合贷款</button>
-          </div>
-        </div>
-        <div>
-          <div class="field-title">当前还款方式</div>
-          <div class="segmented method-tabs" id="repaymentMethodTabs">
-            <button data-value="equalPayment" class="active">等额本息</button>
-            <button data-value="equalPrincipal">等额本金</button>
-          </div>
+      <div class="loan-type-row">
+        <div class="field-title">贷款方式</div>
+        <div class="segmented" id="loanTypeTabs">
+          <button data-value="commercial">商业贷款</button>
+          <button data-value="provident">公积金贷款</button>
+          <button data-value="combined" class="active">组合贷款</button>
         </div>
       </div>
 
@@ -103,55 +90,65 @@
       </details>
     </section>
 
+    <div class="compat-hidden" aria-hidden="true">
+      <div id="repaymentMethodTabs">
+        <button data-value="equalPayment" class="active">等额本息</button>
+        <button data-value="equalPrincipal">等额本金</button>
+      </div>
+      <span id="selectedMethodBadge"></span>
+      <span id="chartMethodBadge"></span>
+      <div id="selectedSummary"></div>
+    </div>
+
     <div id="resultsExportArea">
       <div class="print-result-header" id="printResultHeader"></div>
 
-      <section class="card">
-        <div class="section-title"><div><p class="section-kicker">STEP 02</p><h2>当前还款方案</h2></div><span class="method-badge" id="selectedMethodBadge">等额本息</span></div>
-        <div class="selected-summary" id="selectedSummary"></div>
-      </section>
-
-      <section class="card comparison-card-wrap">
-        <div class="section-title"><div><p class="section-kicker">COMPARE</p><h2>方案对比</h2></div><span class="muted">两种方式基于同一贷款参数自动比较</span></div>
+      <section class="card comparison-card-wrap compact-result-card">
+        <div class="section-title compact-title-row">
+          <h2>方案对比</h2>
+          <span class="muted">同一贷款参数下比较</span>
+        </div>
         <div class="comparison" id="comparison"></div>
       </section>
 
-      <section class="card chart-card">
-        <div class="section-title"><div><p class="section-kicker">TREND</p><h2>还款趋势</h2></div><span class="method-badge subtle" id="chartMethodBadge">等额本息</span></div>
-        <canvas id="trendChart" height="320"></canvas>
-        <div class="legend">
-          <span><i class="legend-line remaining"></i>剩余本金</span>
-          <span><i class="legend-line principal"></i>累计本金</span>
-          <span><i class="legend-line interest"></i>累计利息</span>
+      <section class="card detail-card compact-result-card">
+        <div class="section-title compact-title-row detail-main-heading">
+          <h2>还款明细</h2>
+          <div class="segmented detail-method-tabs" id="detailMethodTabs">
+            <button data-value="equalPayment" class="active">等额本息</button>
+            <button data-value="equalPrincipal">等额本金</button>
+          </div>
         </div>
-      </section>
 
-      <section class="card">
-        <div class="section-title"><div><p class="section-kicker">MILESTONE</p><h2>关键年份</h2></div><label class="mini-label">自定义第 <input id="customYear" type="number" min="1" max="30" value="8" /> 年</label></div>
-        <div class="year-cards" id="yearCards"></div>
-      </section>
-
-      <section class="card detail-card">
-        <div class="section-title detail-heading">
-          <div><p class="section-kicker">DETAILS</p><h2>还款明细</h2></div>
-          <div class="detail-view-tabs segmented" id="detailViewTabs">
+        <div class="detail-subtabs">
+          <div class="segmented compact" id="detailViewTabs">
             <button data-value="annual" class="active">年度汇总</button>
             <button data-value="monthly">每月明细</button>
           </div>
         </div>
 
-        <div class="detail-toolbar">
-          <div>
-            <span class="toolbar-label">还款方式</span>
-            <div class="segmented compact" id="detailMethodTabs">
-              <button data-value="equalPayment" class="active">等额本息</button>
-              <button data-value="equalPrincipal">等额本金</button>
-            </div>
-          </div>
-        </div>
-
         <div id="annualPanel" class="detail-panel active">
           <div class="table-wrap"><table><thead><tr id="annualHead"></tr></thead><tbody id="annualBody"></tbody></table></div>
+
+          <div class="annual-insights">
+            <section class="inline-result-section chart-inline-section">
+              <h3>还款趋势</h3>
+              <canvas id="trendChart" height="320"></canvas>
+              <div class="legend">
+                <span><i class="legend-line remaining"></i>剩余本金</span>
+                <span><i class="legend-line principal"></i>累计本金</span>
+                <span><i class="legend-line interest"></i>累计利息</span>
+              </div>
+            </section>
+
+            <section class="inline-result-section milestone-inline-section">
+              <div class="inline-section-title">
+                <h3>关键年份</h3>
+                <label class="mini-label">自定义第 <input id="customYear" type="number" min="1" max="30" value="8" /> 年</label>
+              </div>
+              <div class="year-cards" id="yearCards"></div>
+            </section>
+          </div>
         </div>
 
         <div id="monthlyPanel" class="detail-panel">
@@ -161,8 +158,8 @@
       </section>
     </div>
 
-    <section class="card saved-card">
-      <div class="section-title"><div><p class="section-kicker">LOCAL</p><h2>本地方案</h2></div><button id="savePlan" class="primary">保存当前方案</button></div>
+    <section class="card saved-card compact-result-card">
+      <div class="section-title compact-title-row"><h2>本地方案</h2><button id="savePlan" class="primary">保存当前方案</button></div>
       <div id="savedPlans" class="saved-plans"></div>
     </section>
 
