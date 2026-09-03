@@ -62,6 +62,7 @@ jobs:
           test -f index.html
           test -f styles.css
           test -f enhancements.css
+          test -f ux-v3.css
           test -f enhancements.js
           test -f ui-layout-sync.js
           test -f PRODUCT_REQUIREMENTS.md
