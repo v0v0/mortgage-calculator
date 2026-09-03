@@ -105,9 +105,10 @@
     return 0;
   }
 
-  function typicalPrincipalDecrease(rows) {
+  function typicalPrincipalDecrease(rows, afterExtraIndex = -1) {
     const diffs = [];
-    for (let i = 1; i < rows.length; i++) {
+    const firstCompareIndex = Math.max(1, afterExtraIndex + 2);
+    for (let i = firstCompareIndex; i < rows.length; i++) {
       const prev = rows[i - 1];
       const curr = rows[i];
       if (Number(prev?.extraPrincipal || 0) > 0.005 || Number(curr?.extraPrincipal || 0) > 0.005) continue;
@@ -120,6 +121,27 @@
     diffs.sort((a, b) => a - b);
     const mid = Math.floor(diffs.length / 2);
     return diffs.length % 2 ? diffs[mid] : (diffs[mid - 1] + diffs[mid]) / 2;
+  }
+
+  function prepaymentState(rows) {
+    const actualExtraIndexes = [];
+    (rows || []).forEach((row, index) => {
+      if (Number(row?.extraPrincipal || 0) > 0.005) actualExtraIndexes.push(index);
+    });
+
+    const hasActual = actualExtraIndexes.length > 0;
+    const hasRecurringRule = [...document.querySelectorAll('.recurring-prepayment-rule')].some(rule => {
+      const firstMonth = Number(rule.querySelector('[data-field="firstMonth"]')?.value || 0);
+      const interval = Number(rule.querySelector('[data-field="intervalMonths"]')?.value || 0);
+      const amount = Number(rule.querySelector('[data-field="amount"]')?.value || 0);
+      return firstMonth > 0 && interval > 0 && amount > 0;
+    });
+
+    return {
+      hasActual,
+      continuous: hasActual && hasRecurringRule,
+      lastExtraIndex: hasActual ? actualExtraIndexes.at(-1) : -1
+    };
   }
 
   function formatYuan(value) {
@@ -168,14 +190,30 @@
     }
     crossNote.textContent = cross ? `第 ${cross} 期开始月供低于等额本息` : '月供未低于等额本息';
 
-    const decrease = typicalPrincipalDecrease(sets.equalPrincipal.total);
+    const prepayment = prepaymentState(sets.equalPrincipal.total);
     let decreaseNote = principalCard.querySelector('.principal-decrease-note');
+
+    if (prepayment.continuous) {
+      decreaseNote?.remove();
+      return true;
+    }
+
+    const decrease = typicalPrincipalDecrease(sets.equalPrincipal.total, prepayment.lastExtraIndex);
     if (!decreaseNote) {
       decreaseNote = document.createElement('div');
       decreaseNote.className = 'principal-decrease-note';
       principalTitle.insertAdjacentElement('afterend', decreaseNote);
     }
-    decreaseNote.innerHTML = decrease > 0.005 ? `常规月供每月约递减 <b>${formatYuan(decrease)}</b>` : '常规月供随剩余本金逐月下降';
+
+    if (prepayment.hasActual) {
+      if (decrease > 0.005) {
+        decreaseNote.innerHTML = `提前还款结束后每月约递减 <b>${formatYuan(decrease)}</b>`;
+      } else {
+        decreaseNote.remove();
+      }
+    } else {
+      decreaseNote.innerHTML = decrease > 0.005 ? `常规月供每月约递减 <b>${formatYuan(decrease)}</b>` : '常规月供随剩余本金逐月下降';
+    }
     return true;
   }
 
