@@ -4,7 +4,7 @@
 
 ## 统计口径
 
-- **PV**：页面处于前台并累计停留满 10 秒后记录 1 次。切到后台的时间不计入 10 秒。
+- **PV**：页面处于前台并累计停留满 2 秒后记录 1 次。切到后台的时间不计入 2 秒。该门槛可以过滤大量不会执行/持续运行页面 JavaScript 的简单爬虫，但不能保证排除所有搜索引擎或无头浏览器爬虫。
 - **UV**：Worker 使用 `HMAC-SHA256(UV_HASH_KEY, IP + User-Agent)` 生成不可逆访客摘要；D1 只保存摘要，不保存 IP 或 User-Agent 原文。
 - **日 UV**：同一摘要同一天只计 1 次；`daily_stats.uv` 保存日 UV。
 - **累计 UV**：`visitor_global` 按匿名摘要去重。IP 或 User-Agent 变化会导致一定程度的高估，共享网络且 UA 相同也可能低估，因此 UV 是近似指标。
@@ -46,7 +46,7 @@
 
 ## 一键部署
 
-仓库提供 `.github/workflows/deploy-analytics.yml`，只支持 `workflow_dispatch` 手动运行，不会在来自 fork 的 PR 上执行，因此 fork PR 不会获得这些 Secrets。
+仓库提供 `.github/workflows/deploy-analytics.yml`，支持手动运行；当 `analytics-worker/**` 或部署 workflow 自身在 `main` 更新时也会自动运行。来自 fork 的 PR 不会获得这些 Secrets。
 
 运行 **Actions → Deploy Cloudflare Analytics → Run workflow** 后会自动：
 
@@ -60,6 +60,8 @@
 8. 只把 **公开的 Worker HTTPS endpoint** 写入 `data/analytics-config.json` 并提交到 `main`；随后现有 GitHub Pages workflow 自动发布站点。
 
 Worker URL 出现在公开仓库中是正常且不可避免的：浏览器必须知道请求地址。安全边界不是隐藏 URL，而是 **Token/Secret 不进入前端或仓库**、统计查询需要 `STATS_TOKEN`、写接口限制允许的站点 Origin。
+
+如果部分用户网络无法访问 `workers.dev`，浏览器端统计请求会失败且不会被记录。GitHub Pages 是纯静态托管，不能在 `v0v0.github.io` 下增加服务端反向代理来隐藏或中转 Worker。更可靠的方案是给 Worker 配置一个由你控制的普通自定义域名（例如 `analytics.example.com`），再把 `data/analytics-config.json` 的 endpoint 改到该域名；密钥仍然只保存在 Cloudflare/GitHub Secret 中。自定义域名可以改善 `workers.dev` 特定域名被网络策略阻断的问题，但任何公网域名都无法保证在所有网络环境中 100% 可达。
 
 ## 查询统计
 
@@ -82,8 +84,10 @@ curl -H "Authorization: Bearer $STATS_TOKEN" \
 
 ## 安全说明
 
-- API Token 仅存在于 GitHub Secrets 和 Actions 进程环境，不提交 Git。
+- 浏览器端只包含公开统计 endpoint，不包含 Cloudflare API Token、`UV_HASH_KEY` 或 `STATS_TOKEN`。
+- `CLOUDFLARE_API_TOKEN` 仅存在于 GitHub Actions Secret/部署进程环境，用来管理 Cloudflare 资源，不参与访客浏览器到 Worker 的请求。
 - Worker 的 `UV_HASH_KEY`、`STATS_TOKEN` 以 Cloudflare Secret 形式保存，Cloudflare Dashboard / Wrangler 不会回显原值。
-- deploy workflow 仅允许手动触发，没有 `pull_request` / `pull_request_target` Secret 暴露路径。
+- 公开的 `/v1/visit`、`/v1/calc`、`/v1/export` 不应携带任何长期密钥；否则密钥必然能被浏览器开发者工具或公开前端源码读取。
+- 写接口校验允许的 `Origin` 并配置按 IP Rate Limiter，可降低普通跨站滥用和刷量，但 CORS/Origin 不是强认证：脚本客户端可以伪造请求头，因此统计数据应视为近似数据，而不是安全审计数据。
 - Pages workflow 不需要 Cloudflare Token。
 - 建议 Cloudflare API Token 使用最小账号范围，并在不再需要自动部署时撤销或轮换。
