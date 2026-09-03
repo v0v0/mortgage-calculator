@@ -24,11 +24,38 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Validate JavaScript
-        run: node --check app.js
+        run: |
+          node --check app.js
+          node --check rate-verification-loader.js
       - name: Validate rate data
-        run: python -m json.tool data/mortgage-rates.json > /dev/null
+        run: |
+          python -m json.tool data/mortgage-rates.json > /dev/null
+          python -m json.tool data/rate-verification-2026-09-03.json > /dev/null
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          base = json.loads(Path('data/mortgage-rates.json').read_text(encoding='utf-8'))
+          verified = json.loads(Path('data/rate-verification-2026-09-03.json').read_text(encoding='utf-8'))
+          city_ids = {city['id'] for city in base['cities']}
+          verified_ids = set(verified['rates'])
+          assert city_ids == verified_ids, f'city mismatch: missing={city_ids-verified_ids}, extra={verified_ids-city_ids}'
+          assert len(city_ids) == 50, f'expected 50 cities, got {len(city_ids)}'
+          for city_id, row in verified['rates'].items():
+              rate, bp, quality, confidence, source_id = row
+              assert 2.0 <= rate <= 5.0, (city_id, rate)
+              assert abs((verified['lpr'][1] + bp / 100) - rate) < 1e-9, (city_id, rate, bp)
+              assert quality in {'VC','VR','OF','NO','CM','NF','MR'}, (city_id, quality)
+              assert confidence in {'H','M','L'}, (city_id, confidence)
+              assert source_id in verified['sources'], (city_id, source_id)
+          PY
       - name: Verify required files
-        run: test -f index.html && test -f styles.css && test -f PRODUCT_REQUIREMENTS.md
+        run: |
+          test -f index.html
+          test -f styles.css
+          test -f PRODUCT_REQUIREMENTS.md
+          test -f RATE_VERIFICATION.md
+          test -f rate-verification-loader.js
       - name: Configure Pages
         uses: actions/configure-pages@v5
         with:
