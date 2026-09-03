@@ -6,7 +6,9 @@
     const badge = $('dataBadge');
     if (!badge) return;
     const match = badge.textContent.match(/(?:利率快照|利率更新)\s*([0-9]{4}-[0-9]{2}-[0-9]{2})/);
-    if (match) badge.textContent = `利率更新 ${match[1]}`;
+    if (!match) return;
+    const text = `利率更新 ${match[1]}`;
+    if (badge.textContent !== text) badge.textContent = text;
   }
 
   function hiddenMethodButton(method) {
@@ -45,6 +47,10 @@
     syncing = false;
   }
 
+  function requestChartRedraw() {
+    window.dispatchEvent(new Event('resize'));
+  }
+
   function install() {
     const badge = $('dataBadge');
     if (badge) {
@@ -55,13 +61,25 @@
     $('detailMethodTabs')?.addEventListener('click', event => {
       const button = event.target.closest('button[data-value]');
       if (!button) return;
-      setTimeout(syncPrimaryFromDetail, 0);
+      setTimeout(() => {
+        syncPrimaryFromDetail();
+        requestChartRedraw();
+      }, 0);
+    });
+
+    $('detailViewTabs')?.addEventListener('click', event => {
+      const button = event.target.closest('button[data-value]');
+      if (!button || button.dataset.value !== 'annual') return;
+      setTimeout(requestChartRedraw, 0);
     });
 
     $('comparison')?.addEventListener('click', event => {
       const card = event.target.closest('.compare-card[data-method]');
       if (!card) return;
-      setTimeout(() => syncDetailFromMethod(card.dataset.method), 0);
+      setTimeout(() => {
+        syncDetailFromMethod(card.dataset.method);
+        requestChartRedraw();
+      }, 0);
     });
 
     let attempts = 0;
